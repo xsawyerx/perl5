@@ -309,7 +309,6 @@ lib/dbm_filter/encode.pm	Verbatim line length including indents exceeds 79 by	1
 lib/dbm_filter/int32.pm	Verbatim line length including indents exceeds 79 by	1
 lib/dbm_filter/null.pm	Verbatim line length including indents exceeds 79 by	1
 lib/dbm_filter/utf8.pm	Verbatim line length including indents exceeds 79 by	1
-lib/devel/ppport.pm	Pod NAME already used	1
 lib/english.pm	Verbatim line length including indents exceeds 79 by	1
 lib/exporter.pm	Verbatim line length including indents exceeds 79 by	2
 lib/extutils/embed.pm	Verbatim line length including indents exceeds 79 by	2
