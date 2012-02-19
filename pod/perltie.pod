@@ -791,7 +791,7 @@ thing, but we'll have to go through the LIST field indirectly.
 	return each %{ $self->{LIST} }
     }
 
-=item SCALAR this
+=item SCALAR
 X<SCALAR>
 
 This is called when the hash is evaluated in scalar context. In order

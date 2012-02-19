@@ -1,5 +1,8 @@
 #!/usr/bin/perl -w
 
+# If C< contains a http: should be L
+
+
 BEGIN {
     chdir 't';
     unshift @INC, "../lib";
@@ -46,8 +49,7 @@ pods in the distribution workspace, except certain known special ones
 (specified below).  It does additional checking beyond that done by
 Pod::Checker, and keeps a database of known potential problems, and will
 fail a pod only if the number of such problems differs from that given in the
-database.  It also suppresses the C<(section) deprecated> message from
-Pod::Checker, since specifying the man page section number is quite proper to do.
+database.
 
 The additional checks it makes are:
 
