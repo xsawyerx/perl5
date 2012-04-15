@@ -2195,6 +2195,29 @@ Perl_regexec_flags(pTHX_ REGEXP * const rx, char *stringarg, register char *stre
 	    end = HOP3c(strend, -dontbother, strbeg) - 1;
 	    /* for multiline we only have to try after newlines */
 	    if (prog->check_substr || prog->check_utf8) {
+                SV * check_real;
+
+                if (!(utf8_target ? prog->check_utf8 : prog->check_substr))
+                    utf8_target ? to_utf8_substr(prog) : to_byte_substr(prog);
+                check_real = utf8_target ? prog->check_utf8 : prog->check_substr;
+
+                if (check_real == &PL_sv_undef) {
+                    assert(!utf8_target); /* this should only happen if we cannot convert unicode to latin1 */
+                    DEBUG_EXECUTE_r({
+                        PerlIO_printf(Perl_debug_log, "Pattern requires check substr unicode codepoints not legal in latin1, cannot match.\n");
+                    });
+                    goto phooey;
+                }
+
+                DEBUG_EXECUTE_r({
+                    RE_PV_QUOTED_DECL(quoted, utf8_target, PERL_DEBUG_PAD_ZERO(0),
+                        SvPVX_const(check_real), RE_SV_DUMPLEN(check_real), 30);
+                    PerlIO_printf(Perl_debug_log, "Looking for check substr %s%s\n",
+                        quoted,
+                        RE_SV_TAIL(check_real)
+                    );
+                });
+
                 /* because of the goto we can not easily reuse the macros for bifurcating the
                    unicode/non-unicode match modes here like we do elsewhere - demerphq */
                 if (utf8_target) {
