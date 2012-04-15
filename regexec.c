@@ -2435,8 +2435,30 @@ Perl_regexec_flags(pTHX_ REGEXP * const rx, char *stringarg, register char *stre
 	    if (!(utf8_target ? prog->float_utf8 : prog->float_substr))
 		utf8_target ? to_utf8_substr(prog) : to_byte_substr(prog);
 	    float_real = utf8_target ? prog->float_utf8 : prog->float_substr;
+            if (!SvOK(float_real)) {
+                assert(!utf8_target); /* this should only happen if we cannot convert unicode to latin1 */
+                DEBUG_EXECUTE_r({
+                    PerlIO_printf(Perl_debug_log, "Pattern requires unicode codepoints not legal in latin1, cannot match.\n");
+                });
+                goto phooey;
+            }
+
+            DEBUG_EXECUTE_r({
+                RE_PV_QUOTED_DECL(quoted, utf8_target, PERL_DEBUG_PAD_ZERO(0),
+                    SvPVX_const(float_real), RE_SV_DUMPLEN(float_real), 30);
+                PerlIO_printf(Perl_debug_log, "Looking for floating substr %s%s\n",
+                    quoted,
+                    RE_SV_TAIL(float_real)
+                );
+            });
+
 
 	    if ((flags & REXEC_SCREAM) && SvSCREAM(sv)) {
+		DEBUG_OPTIMISE_r(
+		    PerlIO_printf(Perl_debug_log,
+			"%sSvSCREAM enabled. Searching for anchored floating string.%s\n",
+			PL_colors[4], PL_colors[5]));
+
 		last = screaminstr(sv, float_real, s - strbeg,
 				   end_shift, &scream_pos, 1); /* last one */
 		if (!last)
@@ -2448,6 +2470,7 @@ Perl_regexec_flags(pTHX_ REGEXP * const rx, char *stringarg, register char *stre
 	    else {
 		STRLEN len;
                 const char * const little = SvPV_const(float_real, len);
+
 		if (SvTAIL(float_real)) {
 		    /* This means that float_real contains an artificial \n on the end
 		     * due to the presence of something like this: /foo$/
@@ -2460,7 +2483,7 @@ Perl_regexec_flags(pTHX_ REGEXP * const rx, char *stringarg, register char *stre
 		    char *checkpos= strend - len;
 		    DEBUG_OPTIMISE_r(
 			PerlIO_printf(Perl_debug_log,
-			    "%sChecking for float_real.%s\n",
+			    "%sSearching for anchored floating string.%s\n",
 			    PL_colors[4], PL_colors[5]));
 		    if (checkpos + 1 < strbeg) {
 			/* can't match, even if we remove the trailing \n string is too short to match */
@@ -2492,9 +2515,17 @@ Perl_regexec_flags(pTHX_ REGEXP * const rx, char *stringarg, register char *stre
 			}
 		    } else {
 			/* multiline match, so we have to search for a place where the full string is located */
+			DEBUG_OPTIMISE_r(
+			    PerlIO_printf(Perl_debug_log,
+				"%sMultiline match, treating as unanchored.%s\n",
+				PL_colors[4], PL_colors[5]));
 			goto find_last;
 		    }
 		} else {
+                    DEBUG_OPTIMISE_r(
+                        PerlIO_printf(Perl_debug_log,
+                            "%sUnanchored floating search.%s\n",
+                            PL_colors[4], PL_colors[5]));
 		  find_last:
 		    if (len)
 			last = rninstr(s, strend, little, little + len);
