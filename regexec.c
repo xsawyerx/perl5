@@ -2298,12 +2298,32 @@ Perl_regexec_flags(pTHX_ REGEXP * const rx, char *stringarg, register char *stre
 	/* we have /x+whatever/ */
 	/* it must be a one character string (XXXX Except UTF_PATTERN?) */
 	char ch;
+        SV *anchored_real;
 #ifdef DEBUGGING
 	int did_match = 0;
 #endif
 	if (!(utf8_target ? prog->anchored_utf8 : prog->anchored_substr))
 	    utf8_target ? to_utf8_substr(prog) : to_byte_substr(prog);
-	ch = SvPVX_const(utf8_target ? prog->anchored_utf8 : prog->anchored_substr)[0];
+        anchored_real = utf8_target ? prog->anchored_utf8 : prog->anchored_substr;
+
+        if (anchored_real == &PL_sv_undef) {
+            assert(!utf8_target); /* this should only happen if we cannot convert unicode to latin1 */
+            DEBUG_EXECUTE_r({
+                PerlIO_printf(Perl_debug_log, "Pattern requires anchored substr unicode codepoints not legal in latin1, cannot match.\n");
+            });
+            goto phooey;
+        }
+        ch = SvPVX_const(anchored_real)[0];
+
+        DEBUG_EXECUTE_r({
+            RE_PV_QUOTED_DECL(quoted, utf8_target, PERL_DEBUG_PAD_ZERO(0),
+                SvPVX_const(anchored_real), RE_SV_DUMPLEN(anchored_real), 30);
+            PerlIO_printf(Perl_debug_log, "Looking for first byte 0x%x of anchored substr %s%s\n",
+                ch,
+                quoted,
+                RE_SV_TAIL(anchored_real)
+            );
+        });
 
 	if (utf8_target) {
 	    REXEC_FBC_SCAN(
