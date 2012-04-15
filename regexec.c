@@ -2377,10 +2377,23 @@ Perl_regexec_flags(pTHX_ REGEXP * const rx, char *stringarg, register char *stre
 	    back_min = prog->float_min_offset;
 	}
 	
-	    
-	if (must == &PL_sv_undef)
+        if (must == &PL_sv_undef) {
+            assert(!utf8_target); /* this should only happen if we cannot convert unicode to latin1 */
+            DEBUG_EXECUTE_r({
+                PerlIO_printf(Perl_debug_log, "Pattern requires mandatory substr unicode codepoints not legal in latin1, cannot match.\n");
+            });
 	    /* could not downgrade utf8 check substring, so must fail */
 	    goto phooey;
+        }
+
+        DEBUG_EXECUTE_r({
+            RE_PV_QUOTED_DECL(quoted, utf8_target, PERL_DEBUG_PAD_ZERO(0),
+                SvPVX_const(must), RE_SV_DUMPLEN(must), 30);
+            PerlIO_printf(Perl_debug_log, "Looking for mandatory substr %s%s\n",
+                quoted,
+                RE_SV_TAIL(must)
+            );
+        });
 
         if (back_min<0) {
 	    last = strend;
