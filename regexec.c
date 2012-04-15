@@ -2513,7 +2513,7 @@ Perl_regexec_flags(pTHX_ REGEXP * const rx, char *stringarg, register char *stre
 	    if ((flags & REXEC_SCREAM) && SvSCREAM(sv)) {
 		DEBUG_OPTIMISE_r(
 		    PerlIO_printf(Perl_debug_log,
-			"SvSCREAM enabled. Searching for anchored floating string.\n"
+                        "SvSCREAM enabled. Searching for floating substr.\n"
 		    ));
 
 		last = screaminstr(sv, float_real, s - strbeg,
