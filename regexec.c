@@ -2491,10 +2491,11 @@ Perl_regexec_flags(pTHX_ REGEXP * const rx, char *stringarg, register char *stre
 	    if (!(utf8_target ? prog->float_utf8 : prog->float_substr))
 		utf8_target ? to_utf8_substr(prog) : to_byte_substr(prog);
 	    float_real = utf8_target ? prog->float_utf8 : prog->float_substr;
-            if (!SvOK(float_real)) {
+
+            if (float_real == &PL_sv_undef) {
                 assert(!utf8_target); /* this should only happen if we cannot convert unicode to latin1 */
                 DEBUG_EXECUTE_r({
-                    PerlIO_printf(Perl_debug_log, "Pattern requires unicode codepoints not legal in latin1, cannot match.\n");
+                    PerlIO_printf(Perl_debug_log, "Pattern requires floating substr unicode codepoints not legal in latin1, cannot match.\n");
                 });
                 goto phooey;
             }
