@@ -2456,8 +2456,8 @@ Perl_regexec_flags(pTHX_ REGEXP * const rx, char *stringarg, register char *stre
 	    if ((flags & REXEC_SCREAM) && SvSCREAM(sv)) {
 		DEBUG_OPTIMISE_r(
 		    PerlIO_printf(Perl_debug_log,
-			"%sSvSCREAM enabled. Searching for anchored floating string.%s\n",
-			PL_colors[4], PL_colors[5]));
+			"SvSCREAM enabled. Searching for anchored floating string.\n"
+		    ));
 
 		last = screaminstr(sv, float_real, s - strbeg,
 				   end_shift, &scream_pos, 1); /* last one */
@@ -2483,14 +2483,14 @@ Perl_regexec_flags(pTHX_ REGEXP * const rx, char *stringarg, register char *stre
 		    char *checkpos= strend - len;
 		    DEBUG_OPTIMISE_r(
 			PerlIO_printf(Perl_debug_log,
-			    "%sSearching for anchored floating string.%s\n",
-			    PL_colors[4], PL_colors[5]));
+			    "Searching for anchored floating string.\n"
+			));
 		    if (checkpos + 1 < strbeg) {
 			/* can't match, even if we remove the trailing \n string is too short to match */
 			DEBUG_EXECUTE_r(
 			    PerlIO_printf(Perl_debug_log,
-				"%sString shorter than required trailing substring, cannot match.%s\n",
-				PL_colors[4], PL_colors[5]));
+				"String shorter than required trailing substring, cannot match.\n"
+			    ));
 			goto phooey;
 		    } else if (memEQ(checkpos + 1, little, len - 1)) {
 			/* can match, the end of the string matches without the "\n" */
@@ -2499,8 +2499,8 @@ Perl_regexec_flags(pTHX_ REGEXP * const rx, char *stringarg, register char *stre
 			/* cant match, string is too short when the "\n" is included */
 			DEBUG_EXECUTE_r(
 			    PerlIO_printf(Perl_debug_log,
-				"%sString does not contain required trailing substring, cannot match.%s\n",
-				PL_colors[4], PL_colors[5]));
+				"String does not contain required trailing substring, cannot match.\n"
+			    ));
 			goto phooey;
 		    } else if (!multiline) {
 			/* non multiline match, so compare with the "\n" at the end of the string */
@@ -2509,23 +2509,23 @@ Perl_regexec_flags(pTHX_ REGEXP * const rx, char *stringarg, register char *stre
 			} else {
 			    DEBUG_EXECUTE_r(
 				PerlIO_printf(Perl_debug_log,
-				    "%sString does not contain required trailing substring, cannot match.%s\n",
-				    PL_colors[4], PL_colors[5]));
+				    "String does not contain required trailing substring, cannot match.\n"
+				));
 			    goto phooey;
 			}
 		    } else {
 			/* multiline match, so we have to search for a place where the full string is located */
 			DEBUG_OPTIMISE_r(
 			    PerlIO_printf(Perl_debug_log,
-				"%sMultiline match, treating as unanchored.%s\n",
-				PL_colors[4], PL_colors[5]));
+				"Multiline match, treating as unanchored.\n"
+			    ));
 			goto find_last;
 		    }
 		} else {
                     DEBUG_OPTIMISE_r(
                         PerlIO_printf(Perl_debug_log,
-                            "%sUnanchored floating search.%s\n",
-                            PL_colors[4], PL_colors[5]));
+                            "Unanchored floating search.\n"
+                        ));
 		  find_last:
 		    if (len)
 			last = rninstr(s, strend, little, little + len);
