@@ -8,7 +8,7 @@ use Test::More tests => 2;
 
 my $min = MinTest->new();
 my $max = MaxTest->new();
-is_deeply([qw(MyOtherTest::Plugin::Bar MyOtherTest::Plugin::Foo  MyOtherTest::Plugin::Quux)], [$max->plugins], "min depth");
+is_deeply([sort qw(MyOtherTest::Plugin::Bar MyOtherTest::Plugin::Foo  MyOtherTest::Plugin::Quux)], [sort $max->plugins], "min depth");
 is_deeply([qw(MyOtherTest::Plugin::Quux::Foo)], [$min->plugins], "max depth");
 
 
