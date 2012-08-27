@@ -6,9 +6,10 @@ our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(rearrange rearrange_header make_attributes unescape escape 
 		expires ebcdic2ascii ascii2ebcdic);
 
-our $VERSION = '3.53';
+our $VERSION = '3.54';
 
 use constant EBCDIC => "\t" ne "\011";
+our $SORT_ATTRIBUTES;
 
 # (ord('^') == 95) for codepage 1047 as on os390, vmesa
 our @A2E = (
@@ -132,8 +133,12 @@ sub make_attributes {
 
     my $quote = $do_not_quote ? '' : '"';
 
+    my @attr_keys= keys %$attr;
+    if ($SORT_ATTRIBUTES) {
+        @attr_keys= sort @attr_keys;
+    }
     my(@att);
-    foreach (keys %{$attr}) {
+    foreach (@attr_keys) {
 	my($key) = $_;
 	$key=~s/^\-//;     # get rid of initial - if present
 

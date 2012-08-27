@@ -1,3 +1,11 @@
+Version 3.61 Oct 20th, 2012 [CORE internal "bugfix" release (non-cpan)]
+
+  [TEST FIXES]
+  - Made it possible to force a sorted order for things like hash
+    attributes so that tests are not dependent on a particular hash
+    ordering. This will be required in modern perls which will
+    change the ordering per process.
+
 Version 3.60 Aug 15th, 2012
 
   [BUG FIXES]  
