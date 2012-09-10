@@ -1142,6 +1142,144 @@ XS(XS_Internals_PERL_HASH)        /* Subject to change  */
     Perl_croak(aTHX_ "Internals::PERL_HASH $hashref, $value");
 }
 
+XS(XS_Internals_bucket_info)
+{
+    dVAR;
+    dXSARGS;
+    PERL_UNUSED_ARG(cv);
+    if (items == 1 && SvROK(ST(0)) && SvTYPE(SvRV(ST(0)))==SVt_PVHV && !SvMAGICAL(SvRV(ST(0)))) {
+        const HV * const hv = (const HV *) SvRV(POPs);
+        U32 max_bucket= HvMAX(hv);
+        U32 total_keys= HvUSEDKEYS(hv);
+        U32 used_buckets= 0;
+        U32 max_buckets= 0;
+        U32 min_buckets= 0;
+        U32 i,j;
+        NV sum_sq= 0;
+        NV sum= 0;
+        HE **he_ptr= HvARRAY(hv);
+        HE *he;
+        NV stddev;
+        U32 n= total_keys;
+        AV *histo= newAV();
+        SV **histo_raw;
+        av_store(histo,0,newSViv(0));
+        histo_raw= AvARRAY(histo);
+
+        for ( i= 0; i <= max_bucket; i++ ) {
+            U32 count= 0;
+            for (he= he_ptr[i]; he; he= HeNEXT(he) ) {
+                if (HeVAL(he) != &PL_sv_placeholder) {
+                    count++;
+                    if (!--n) {
+                        i= max_bucket+1;
+                        break;
+                    }
+                }
+            }
+            if (count) {
+                if (used_buckets) {
+                    if ( max_buckets < count ) {
+                        for (j= max_buckets+1; j <= count; j++) {
+                            av_store(histo,j,newSViv(0));
+                        }
+                        histo_raw= AvARRAY(histo);
+                        max_buckets= count;
+                    }
+                    if ( min_buckets > count )
+                        min_buckets= count;
+                } else {
+                    for (j= 0; j <= count; j++) {
+                        av_store(histo,j,newSViv(0));
+                    }
+                    histo_raw= AvARRAY(histo);
+                    max_buckets= count;
+                    min_buckets= count;
+                }
+                used_buckets++;
+                sum_sq+= (count * count);
+                sum += count;
+            }
+            SvIVX(histo_raw[count])++;
+        }
+        mXPUSHi(total_keys);
+        mXPUSHi(max_bucket+1);
+        mXPUSHi(used_buckets);
+
+        mXPUSHi(max_buckets);
+        mXPUSHi(min_buckets);
+
+        mXPUSHn(sum/used_buckets);
+        mXPUSHn((sum_sq - ((sum * sum)/(NV)used_buckets))/(NV)used_buckets);
+        mXPUSHs(newRV_noinc(histo));
+        XSRETURN(8);
+    } else {
+        Perl_croak(aTHX_ "Internals::bucket_info takes only one argument, a $hashref");
+    }
+}
+
+XS(XS_Internals_bucket_array)
+{
+    dVAR;
+    dXSARGS;
+    PERL_UNUSED_ARG(cv);
+    if (items == 1 && SvROK(ST(0))) {
+        const HV * const hv = (const HV *) SvRV(ST(0));
+        if (SvTYPE(hv) == SVt_PVHV) {
+            U32 n, i, max;
+            AV *info_av;
+            HE **he_ptr;
+            HE *he;
+            if (SvMAGICAL(hv)) {
+                Perl_croak(aTHX_ "Internals::bucket_info only works on 'normal' hashes");
+            }
+            info_av= newAV();
+            n= HvUSEDKEYS(hv);
+            he_ptr= HvARRAY(hv);
+            max= HvMAX(hv);
+            av_store(info_av,max,&PL_sv_undef);
+            ST(0)= sv_2mortal(newRV_noinc((SV*)info_av));
+            for ( i= 0; i <= max; i++ ) {
+                AV *key_av= NULL;
+                for (he= he_ptr[i]; he; he= HeNEXT(he) ) {
+                    SV *key_sv;
+                    if (!key_av) {
+                        key_av= newAV();
+                        av_store(info_av,i,(SV *)newRV_noinc((SV *)key_av));
+                    }
+                    if (HeVAL(he) != &PL_sv_placeholder) {
+                        char *str;
+                        STRLEN len;
+                        char mode;
+                        if (HeKLEN(he) == HEf_SVKEY) {
+                            SV *sv= HeSVKEY(he);
+                            SvGETMAGIC(sv);
+                            str= SvPV(sv, len);
+                            mode= SvUTF8(sv) ? 1 : 0;
+                        } else {
+                            str= HeKEY(he);
+                            len= HeKLEN(he);
+                            mode= HeKUTF8(he) ? 1 : 0;
+                        }
+                        key_sv= newSVpvn(str,len);
+                        if (mode) {
+                            SvUTF8_on(key_sv);
+                        }
+                    } else {
+                        key_sv= newSV_type(SVt_NULL);
+                    }
+                    av_push(key_av, key_sv);
+                }
+            }
+        }
+        else {
+            Perl_croak(aTHX_ "Internals::bucket_info only works on 'normal' hashes");
+        }
+    } else {
+        Perl_croak(aTHX_ "Internals::bucket_info takes only one argument, a $hashref");
+    }
+}
+
 XS(XS_re_is_regexp)
 {
     dVAR; 
@@ -1422,6 +1560,8 @@ const struct xsub_details details[] = {
     {"Internals::rehash_seed", XS_Internals_rehash_seed, ""},
     {"Internals::HvREHASH", XS_Internals_HvREHASH, "\\%"},
     {"Internals::PERL_HASH", XS_Internals_PERL_HASH, "\\%$"},
+    {"Internals::bucket_array", XS_Internals_bucket_array, "$"},
+    {"Internals::bucket_info", XS_Internals_bucket_info, "$"},
     {"re::is_regexp", XS_re_is_regexp, "$"},
     {"re::regname", XS_re_regname, ";$$"},
     {"re::regnames", XS_re_regnames, ";$"},
