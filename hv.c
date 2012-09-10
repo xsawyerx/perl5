@@ -792,37 +792,51 @@ Perl_hv_common(pTHX_ HV *hv, SV *keysv, const char *key, STRLEN klen,
     else                                       /* gotta do the real thing */
 	HeKEY_hek(entry) = save_hek_flags(key, klen, hash, flags);
     HeVAL(entry) = val;
-    HeNEXT(entry) = *oentry;
-    *oentry = entry;
-
-    if (val == &PL_sv_placeholder)
-	HvPLACEHOLDERS(hv)++;
-    if (masked_flags & HVhek_ENABLEHVKFLAGS)
-	HvHASKFLAGS_on(hv);
-
     {
-	const HE *counter = HeNEXT(entry);
+        U32 n_links = 1;
 
-	xhv->xhv_keys++; /* HvTOTALKEYS(hv)++ */
-	if (!counter) {				/* initial entry? */
-	} else if (xhv->xhv_keys > xhv->xhv_max) {
-		/* Use only the old HvUSEDKEYS(hv) > HvMAX(hv) condition to limit
-		   bucket splits on a rehashed hash, as we're not going to
-		   split it again, and if someone is lucky (evil) enough to
-		   get all the keys in one list they could exhaust our memory
-		   as we repeatedly double the number of buckets on every
-		   entry. Linear search feels a less worse thing to do.  */
-	    hsplit(hv);
-	} else if(!HvREHASH(hv)) {
-	    U32 n_links = 1;
+        if (0 && key) {
+            while ( *oentry && (
+                    HeHASH(*oentry) <= hash &&
+                    HeKLEN(*oentry) <= HeKLEN(entry) &&
+                    strLT(HeKEY(*oentry),HeKEY(entry)) ) )
+            {
+                oentry=&(HeNEXT(*oentry));
+                n_links++;
+            }
+        }
+        HeNEXT(entry) = *oentry;
+        *oentry = entry;
 
-	    while ((counter = HeNEXT(counter)))
-		n_links++;
+        if (val == &PL_sv_placeholder)
+            HvPLACEHOLDERS(hv)++;
+        if (masked_flags & HVhek_ENABLEHVKFLAGS)
+            HvHASKFLAGS_on(hv);
 
-	    if (n_links > HV_MAX_LENGTH_BEFORE_SPLIT) {
-		hsplit(hv);
-	    }
-	}
+        {
+            const HE *counter = HeNEXT(entry);
+
+            xhv->xhv_keys++; /* HvTOTALKEYS(hv)++ */
+            if (!counter && n_links == 1) {
+                /* empty bucket, so dont bother splitting now */
+            } else if ( xhv->xhv_keys > xhv->xhv_max ) {
+                    /* Use only the old HvUSEDKEYS(hv) > HvMAX(hv) condition to limit
+                       bucket splits on a rehashed hash, as we're not going to
+                       split it again, and if someone is lucky (evil) enough to
+                       get all the keys in one list they could exhaust our memory
+                       as we repeatedly double the number of buckets on every
+                       entry. Linear search feels a less worse thing to do.  */
+                hsplit(hv);
+            } else if(counter && !HvREHASH(hv)) {
+
+                while ((counter = HeNEXT(counter)))
+                    n_links++;
+
+                if (n_links > HV_MAX_LENGTH_BEFORE_SPLIT) {
+                    hsplit(hv);
+                }
+            }
+        }
     }
 
     if (return_svp) {
