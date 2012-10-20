@@ -54,7 +54,6 @@ threads->create(sub {
                 $$aobj[0] = bless(&share({}), 'yin');
                 $$aobj[1] = bless(&share([]), 'yang');
                 $$aobj[2] = $sobj;
-
                 $$hobj{'hash'}   = bless(&share({}), 'yin');
                 $$hobj{'array'}  = bless(&share([]), 'yang');
                 $$hobj{'scalar'} = $sobj;

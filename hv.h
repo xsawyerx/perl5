@@ -124,27 +124,26 @@ struct xpvhv {
 #ifndef PERL_HASH_SEED
 #   if defined(USE_HASH_SEED) || defined(USE_HASH_SEED_EXPLICIT)
 #       define PERL_HASH_SEED	PL_hash_seed
+#       define PERL_HASH_SEED_SET PL_hash_seed_set
+#       define PERL_HASH_SEED_REQUIRES_COPY_IN_THREAD
 #   else
 #       define PERL_HASH_SEED	0
+#       define PERL_HASH_SEED_SET TRUE
 #   endif
 #endif
 
-#define PERL_HASH(hash,str,len) PERL_HASH_INTERNAL_(hash,str,len,0)
-
-/* Only hv.c and mod_perl should be doing this.  */
+/* legacy - only mod_perl should be doing this.  */
 #ifdef PERL_HASH_INTERNAL_ACCESS
-#define PERL_HASH_INTERNAL(hash,str,len) PERL_HASH_INTERNAL_(hash,str,len,1)
+#define PERL_HASH_INTERNAL(hash,str,len) PERL_HASH(hash,str,len)
 #endif
 
-/* Common base for PERL_HASH and PERL_HASH_INTERNAL that parameterises
- * the source of the seed. Not for direct use outside of hv.c. */
-
-#define PERL_HASH_INTERNAL_(hash,str,len,internal) \
+#define PERL_HASH(hash,str,len) \
      STMT_START	{ \
 	const char * const s_PeRlHaSh_tmp = str; \
 	const unsigned char *s_PeRlHaSh = (const unsigned char *)s_PeRlHaSh_tmp; \
 	I32 i_PeRlHaSh = len; \
-	U32 hash_PeRlHaSh = (internal ? PL_rehash_seed : PERL_HASH_SEED); \
+        U32 hash_PeRlHaSh = PERL_HASH_SEED ^ len; \
+        assert( PERL_HASH_SEED_SET == TRUE ); \
 	while (i_PeRlHaSh--) { \
 	    hash_PeRlHaSh += *s_PeRlHaSh++; \
 	    hash_PeRlHaSh += (hash_PeRlHaSh << 10); \
@@ -358,10 +357,6 @@ C<SV*>.
 #define HvLAZYDEL_on(hv)	(SvFLAGS(hv) |= SVphv_LAZYDEL)
 #define HvLAZYDEL_off(hv)	(SvFLAGS(hv) &= ~SVphv_LAZYDEL)
 
-#define HvREHASH(hv)		(SvFLAGS(hv) & SVphv_REHASH)
-#define HvREHASH_on(hv)		(SvFLAGS(hv) |= SVphv_REHASH)
-#define HvREHASH_off(hv)	(SvFLAGS(hv) &= ~SVphv_REHASH)
-
 #ifndef PERL_CORE
 #  define Nullhe Null(HE*)
 #endif
@@ -372,7 +367,6 @@ C<SV*>.
 #define HeKLEN(he)		HEK_LEN(HeKEY_hek(he))
 #define HeKUTF8(he)  HEK_UTF8(HeKEY_hek(he))
 #define HeKWASUTF8(he)  HEK_WASUTF8(HeKEY_hek(he))
-#define HeKREHASH(he)  HEK_REHASH(HeKEY_hek(he))
 #define HeKLEN_UTF8(he)  (HeKUTF8(he) ? -HeKLEN(he) : HeKLEN(he))
 #define HeKFLAGS(he)  HEK_FLAGS(HeKEY_hek(he))
 #define HeVAL(he)		(he)->he_valu.hent_val
@@ -407,7 +401,6 @@ C<SV*>.
 
 #define HVhek_UTF8	0x01 /* Key is utf8 encoded. */
 #define HVhek_WASUTF8	0x02 /* Key is bytes here, but was supplied as utf8. */
-#define HVhek_REHASH	0x04 /* This key is in an hv using a custom HASH . */
 #define HVhek_UNSHARED	0x08 /* This key isn't a shared hash key. */
 #define HVhek_FREEKEY	0x100 /* Internal flag to say key is malloc()ed.  */
 #define HVhek_PLACEHOLD	0x200 /* Internal flag to create placeholder.
@@ -417,16 +410,7 @@ C<SV*>.
 				    converted to bytes. */
 #define HVhek_MASK	0xFF
 
-/* Which flags enable HvHASKFLAGS? Somewhat a hack on a hack, as
-   HVhek_REHASH is only needed because the rehash flag has to be duplicated
-   into all keys as hv_iternext has no access to the hash flags. At this
-   point Storable's tests get upset, because sometimes hashes are "keyed"
-   and sometimes not, depending on the order of data insertion, and whether
-   it triggered rehashing. So currently HVhek_REHASH is exempt.
-   Similarly UNSHARED
-*/
-   
-#define HVhek_ENABLEHVKFLAGS	(HVhek_MASK & ~(HVhek_REHASH|HVhek_UNSHARED))
+#define HVhek_ENABLEHVKFLAGS        (HVhek_MASK & ~(HVhek_UNSHARED))
 
 #define HEK_UTF8(hek)		(HEK_FLAGS(hek) & HVhek_UTF8)
 #define HEK_UTF8_on(hek)	(HEK_FLAGS(hek) |= HVhek_UTF8)
@@ -434,8 +418,6 @@ C<SV*>.
 #define HEK_WASUTF8(hek)	(HEK_FLAGS(hek) & HVhek_WASUTF8)
 #define HEK_WASUTF8_on(hek)	(HEK_FLAGS(hek) |= HVhek_WASUTF8)
 #define HEK_WASUTF8_off(hek)	(HEK_FLAGS(hek) &= ~HVhek_WASUTF8)
-#define HEK_REHASH(hek)		(HEK_FLAGS(hek) & HVhek_REHASH)
-#define HEK_REHASH_on(hek)	(HEK_FLAGS(hek) |= HVhek_REHASH)
 
 /* calculate HV array allocation */
 #ifndef PERL_USE_LARGE_HV_ALLOC
