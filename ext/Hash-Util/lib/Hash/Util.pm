@@ -31,7 +31,7 @@ our @EXPORT_OK  = qw(
                      hash_seed hv_store
                      lock_hash_recurse unlock_hash_recurse
                     );
-our $VERSION = '0.12';
+our $VERSION = '0.13';
 require XSLoader;
 XSLoader::load();
 
@@ -460,8 +460,6 @@ unrestricted hash.
     my $hash_seed = hash_seed();
 
 hash_seed() returns the seed number used to randomise hash ordering.
-Zero means the "traditional" random hash ordering, non-zero means the
-new even more random hash ordering introduced in Perl 5.8.1.
 
 B<Note that the hash seed is sensitive information>: by knowing it one
 can craft a denial-of-service attack against Perl code, even remotely,
@@ -472,7 +470,7 @@ See also L<perlrun/PERL_HASH_SEED_DEBUG>.
 =cut
 
 sub hash_seed () {
-    Internals::rehash_seed();
+    Internals::hash_seed();
 }
 
 =item B<hv_store>

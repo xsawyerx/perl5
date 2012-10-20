@@ -162,7 +162,7 @@ PERLVARI(I, dumpindent,	U16,	4)	/* number of blanks per dump
 
 
 PERLVAR(I, utf8locale,	bool)		/* utf8 locale detected */
-PERLVARI(I, rehash_seed_set, bool, FALSE)	/* 582 hash initialized? */
+PERLVARI(I, hash_seed_set, bool, FALSE)        /* 582 hash initialized? (renamed in 5.16) */
 
 PERLVARA(I, colors,6,	char *)		/* from regcomp.c */
 
@@ -741,7 +741,7 @@ PERLVARI(I, signalhook,	despatch_signals_proc_t, Perl_despatch_signals)
 
 PERLVARI(I, hash_seed,	UV,	0)	/* Hash initializer */
 
-PERLVARI(I, rehash_seed, UV,	0)	/* 582 hash initializer */
+PERLVARI(I, dead_var_left_for_bin_compat, UV,        0) /* used to be rehash_seed */
 
 PERLVARI(I, isarev, HV *, NULL)		/* Reverse map of @ISA dependencies */
 

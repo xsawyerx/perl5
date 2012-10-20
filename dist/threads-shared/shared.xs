@@ -1247,11 +1247,19 @@ void
 Perl_sharedsv_init(pTHX)
 {
     dTHXc;
+
     /* This pair leaves us in shared context ... */
     PL_sharedsv_space = perl_alloc();
     perl_construct(PL_sharedsv_space);
     LEAVE; /* This balances the ENTER at the end of perl_construct.  */
     PERL_SET_CONTEXT((aTHX = caller_perl));
+
+    /* make sure that our shared context has the same hash seed as our current context
+     * one wonders if this should happen in perl_construct() or something - anyway... */
+    assert(PL_hash_seed_set == TRUE);
+    PL_sharedsv_space->Ihash_seed= PL_hash_seed;
+    PL_sharedsv_space->Ihash_seed_set= TRUE;
+
     recursive_lock_init(aTHX_ &PL_sharedsv_lock);
     PL_lockhook = &Perl_sharedsv_locksv;
     PL_sharehook = &Perl_sharedsv_share;
