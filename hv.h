@@ -103,9 +103,6 @@ struct xpvhv {
 };
 
 /* hash a key */
-/* FYI: This is the "One-at-a-Time" algorithm by Bob Jenkins
- * from requirements by Colin Plumb.
- * (http://burtleburtle.net/bob/hash/doobs.html) */
 /* The use of a temporary pointer and the casting games
  * is needed to serve the dual purposes of
  * (a) the hashed data being interpreted as "unsigned char" (new since 5.8,
@@ -137,15 +134,378 @@ struct xpvhv {
 #define PERL_HASH_INTERNAL(hash,str,len) PERL_HASH(hash,str,len)
 #endif
 
+/* Uncomment one of the following lines to use an alternative hash algorithm.
+#define PERL_HASH_FUNC_SUPERFAST
+#define PERL_HASH_FUNC_SDBM
+#define PERL_HASH_FUNC_DJB2
+#define PERL_HASH_FUNC_MURMUR3
+*/
+
+
+#if defined(PERL_HASH_FUNC_SUPERFAST)
+#define PERL_HASH_FUNC "SUPERFAST"
+/* FYI: This is the "Super-Fast" algorithm mentioned by Bob Jenkins in
+ * (http://burtleburtle.net/bob/hash/doobs.html)
+ * It is by Paul Hsieh (c) 2004 and is analysed here
+ * http://www.azillionmonkeys.com/qed/hash.html
+ * license terms are here:
+ * http://www.azillionmonkeys.com/qed/weblicense.html
+ */
+#undef get16bits
+#if (defined(__GNUC__) && defined(__i386__)) || defined(__WATCOMC__) \
+  || defined(_MSC_VER) || defined (__BORLANDC__) || defined (__TURBOC__)
+#define get16bits(d) (*((const U16 *) (d)))
+#endif
+
+#if !defined (get16bits)
+#define get16bits(d) ((((const U8 *)(d))[1] << UINT32_C(8))\
+                      +((const U8 *)(d))[0])
+#endif
+#define PERL_HASH(hash,str,len) \
+      STMT_START        { \
+        register const char * const strtmp_PeRlHaSh = (str); \
+        register const unsigned char *str_PeRlHaSh = (const unsigned char *)strtmp_PeRlHaSh; \
+        register U32 len_PeRlHaSh = (len); \
+        register U32 hash_PeRlHaSh = PERL_HASH_SEED ^ len; \
+        register U32 tmp_PeRlHaSh; \
+        register int rem_PeRlHaSh= len_PeRlHaSh & 3; \
+        len_PeRlHaSh >>= 2; \
+                            \
+        for (;len_PeRlHaSh > 0; len_PeRlHaSh--) { \
+            hash_PeRlHaSh  += get16bits (str_PeRlHaSh); \
+            tmp_PeRlHaSh    = (get16bits (str_PeRlHaSh+2) << 11) ^ hash_PeRlHaSh; \
+            hash_PeRlHaSh   = (hash_PeRlHaSh << 16) ^ tmp_PeRlHaSh; \
+            str_PeRlHaSh   += 2 * sizeof (U16); \
+            hash_PeRlHaSh  += hash_PeRlHaSh >> 11; \
+        } \
+        \
+        /* Handle end cases */ \
+        switch (rem_PeRlHaSh) { \
+            case 3: hash_PeRlHaSh += get16bits (str_PeRlHaSh); \
+                    hash_PeRlHaSh ^= hash_PeRlHaSh << 16; \
+                    hash_PeRlHaSh ^= str_PeRlHaSh[sizeof (U16)] << 18; \
+                    hash_PeRlHaSh += hash_PeRlHaSh >> 11; \
+                    break; \
+            case 2: hash_PeRlHaSh += get16bits (str_PeRlHaSh); \
+                    hash_PeRlHaSh ^= hash_PeRlHaSh << 11; \
+                    hash_PeRlHaSh += hash_PeRlHaSh >> 17; \
+                    break; \
+            case 1: hash_PeRlHaSh += *str_PeRlHaSh; \
+                    hash_PeRlHaSh ^= hash_PeRlHaSh << 10; \
+                    hash_PeRlHaSh += hash_PeRlHaSh >> 1; \
+        } \
+        \
+        /* Force "avalanching" of final 127 bits */ \
+        hash_PeRlHaSh ^= hash_PeRlHaSh << 3; \
+        hash_PeRlHaSh += hash_PeRlHaSh >> 5; \
+        hash_PeRlHaSh ^= hash_PeRlHaSh << 4; \
+        hash_PeRlHaSh += hash_PeRlHaSh >> 17; \
+        hash_PeRlHaSh ^= hash_PeRlHaSh << 25; \
+        (hash) = (hash_PeRlHaSh + (hash_PeRlHaSh >> 6)); \
+    } STMT_END
+
+#elif defined(PERL_HASH_FUNC_MURMUR3)
+#define PERL_HASH_FUNC "MURMUR3"
+
+/*-----------------------------------------------------------------------------
+ * MurmurHash3 was written by Austin Appleby, and is placed in the public
+ * domain.
+ *
+ * This implementation was originally written by Shane Day, and is also public domain,
+ * and was modified to function as a macro similar to other perl hash functions by
+ * Yves Orton.
+ *
+ * This is a portable ANSI C implementation of MurmurHash3_x86_32 (Murmur3A)
+ * with support for progressive processing.
+ *
+ * If you want to understand the MurmurHash algorithm you would be much better
+ * off reading the original source. Just point your browser at:
+ * http://code.google.com/p/smhasher/source/browse/trunk/MurmurHash3.cpp
+ *
+ * How does it work?
+ *
+ * We can only process entire 32 bit chunks of input, except for the very end
+ * that may be shorter.
+ *
+ * To handle endianess I simply use a macro that reads a U32 and define
+ * that macro to be a direct read on little endian machines, a read and swap
+ * on big endian machines, or a byte-by-byte read if the endianess is unknown.
+ */
+
+
+/*-----------------------------------------------------------------------------
+ * Endianess, misalignment capabilities and util macros
+ *
+ * The following 3 macros are defined in this section. The other macros defined
+ * are only needed to help derive these 3.
+ *
+ * MURMUR_READ_UINT32(x)   Read a little endian unsigned 32-bit int
+ * MURMUR_UNALIGNED_SAFE   Defined if READ_UINT32 works on non-word boundaries
+ * MURMUR_ROTL32(x,r)      Rotate x left by r bits
+ */
+
+/* Convention is to define __BYTE_ORDER == to one of these values */
+#if !defined(__BIG_ENDIAN)
+  #define __BIG_ENDIAN 4321
+#endif
+#if !defined(__LITTLE_ENDIAN)
+  #define __LITTLE_ENDIAN 1234
+#endif
+
+/* I386 */
+#if defined(_M_IX86) || defined(__i386__) || defined(__i386) || defined(i386)
+  #define __BYTE_ORDER __LITTLE_ENDIAN
+  #define MURMUR_UNALIGNED_SAFE
+#endif
+
+/* gcc 'may' define __LITTLE_ENDIAN__ or __BIG_ENDIAN__ to 1 (Note the trailing __),
+ * or even _LITTLE_ENDIAN or _BIG_ENDIAN (Note the single _ prefix) */
+#if !defined(__BYTE_ORDER)
+  #if defined(__LITTLE_ENDIAN__) && __LITTLE_ENDIAN__==1 || defined(_LITTLE_ENDIAN) && _LITTLE_ENDIAN==1
+    #define __BYTE_ORDER __LITTLE_ENDIAN
+  #elif defined(__BIG_ENDIAN__) && __BIG_ENDIAN__==1 || defined(_BIG_ENDIAN) && _BIG_ENDIAN==1
+    #define __BYTE_ORDER __BIG_ENDIAN
+  #endif
+#endif
+
+/* gcc (usually) defines xEL/EB macros for ARM and MIPS endianess */
+#if !defined(__BYTE_ORDER)
+  #if defined(__ARMEL__) || defined(__MIPSEL__)
+    #define __BYTE_ORDER __LITTLE_ENDIAN
+  #endif
+  #if defined(__ARMEB__) || defined(__MIPSEB__)
+    #define __BYTE_ORDER __BIG_ENDIAN
+  #endif
+#endif
+
+/* Now find best way we can to READ_UINT32 */
+#if __BYTE_ORDER==__LITTLE_ENDIAN
+  /* CPU endian matches murmurhash algorithm, so read 32-bit word directly */
+  #define MURMUR_READ_UINT32(ptr)   (*((uint32_t*)(ptr)))
+#elif __BYTE_ORDER==__BIG_ENDIAN
+  /* TODO: Add additional cases below where a compiler provided bswap32 is available */
+  #if defined(__GNUC__) && (__GNUC__>4 || (__GNUC__==4 && __GNUC_MINOR__>=3))
+    #define MURMUR_READ_UINT32(ptr)   (__builtin_bswap32(*((uint32_t*)(ptr))))
+  #else
+    /* Without a known fast bswap32 we're just as well off doing this */
+    #define MURMUR_READ_UINT32(ptr)   (ptr[0]|ptr[1]<<8|ptr[2]<<16|ptr[3]<<24)
+    #define MURMUR_UNALIGNED_SAFE
+  #endif
+#else
+  /* Unknown endianess so last resort is to read individual bytes */
+  #define MURMUR_READ_UINT32(ptr)   (ptr[0]|ptr[1]<<8|ptr[2]<<16|ptr[3]<<24)
+
+  /* Since we're not doing word-reads we can skip the messing about with realignment */
+  #define MURMUR_UNALIGNED_SAFE
+#endif
+
+/* Find best way to ROTL32 */
+#if defined(_MSC_VER)
+  #include <stdlib.h>  /* Microsoft put _rotl declaration in here */
+  #define MURMUR_ROTL32(x,r)  _rotl(x,r)
+#else
+  /* gcc recognises this code and generates a rotate instruction for CPUs with one */
+  #define MURMUR_ROTL32(x,r)  (((U32)x << r) | ((U32)x >> (32 - r)))
+#endif
+
+
+/*-----------------------------------------------------------------------------
+ * Core murmurhash algorithm macros */
+
+#define MURMUR_C1  (0xcc9e2d51)
+#define MURMUR_C2  (0x1b873593)
+#define MURMUR_C3  (0xe6546b64)
+#define MURMUR_C4  (0x85ebca6b)
+#define MURMUR_C5  (0xc2b2ae35)
+
+/* This is the main processing body of the algorithm. It operates
+ * on each full 32-bits of input. */
+#define MURMUR_DOBLOCK(h1, k1) STMT_START { \
+    k1 *= MURMUR_C1; \
+    k1 = MURMUR_ROTL32(k1,15); \
+    k1 *= MURMUR_C2; \
+    \
+    h1 ^= k1; \
+    h1 = MURMUR_ROTL32(h1,13); \
+    h1 = h1 * 5 + MURMUR_C3; \
+} STMT_END
+
+
+/* Append unaligned bytes to carry, forcing hash churn if we have 4 bytes */
+/* cnt=bytes to process, h1=name of h1 var, c=carry, n=bytes in c, ptr/len=payload */
+#define MURMUR_DOBYTES(cnt, h1, c, n, ptr, len) STMT_START { \
+    int MURMUR_DOBYTES_i = cnt; \
+    while(MURMUR_DOBYTES_i--) { \
+        c = c>>8 | *ptr++<<24; \
+        n++; len--; \
+        if(n==4) { \
+            MURMUR_DOBLOCK(h1, c); \
+            n = 0; \
+        } \
+    } \
+} STMT_END
+
+/* process the last 1..3 bytes and finalize */
+#define MURMUR_FINALIZE(hash, PeRlHaSh_len, PeRlHaSh_k1, PeRlHaSh_h1, PeRlHaSh_carry, PeRlHaSh_bytes_in_carry, PeRlHaSh_ptr, PeRlHaSh_total_length) STMT_START { \
+    /* Advance over whole 32-bit chunks, possibly leaving 1..3 bytes */\
+    PeRlHaSh_len -= PeRlHaSh_len/4*4;                           \
+                                                                \
+    /* Append any remaining bytes into carry */                 \
+    MURMUR_DOBYTES(PeRlHaSh_len, PeRlHaSh_h1, PeRlHaSh_carry, PeRlHaSh_bytes_in_carry, PeRlHaSh_ptr, PeRlHaSh_len); \
+                                                                \
+    if (PeRlHaSh_bytes_in_carry) {                                           \
+        PeRlHaSh_k1 = PeRlHaSh_carry >> ( 4 - PeRlHaSh_bytes_in_carry ) * 8; \
+        PeRlHaSh_k1 *= MURMUR_C1;                               \
+        PeRlHaSh_k1 = MURMUR_ROTL32(PeRlHaSh_k1,15);                   \
+        PeRlHaSh_k1 *= MURMUR_C2;                               \
+        PeRlHaSh_h1 ^= PeRlHaSh_k1;                             \
+    }                                                           \
+    PeRlHaSh_h1 ^= PeRlHaSh_total_length;                       \
+                                                                \
+    /* fmix */                                                  \
+    PeRlHaSh_h1 ^= PeRlHaSh_h1 >> 16;                           \
+    PeRlHaSh_h1 *= MURMUR_C4;                                   \
+    PeRlHaSh_h1 ^= PeRlHaSh_h1 >> 13;                           \
+    PeRlHaSh_h1 *= MURMUR_C5;                                   \
+    PeRlHaSh_h1 ^= PeRlHaSh_h1 >> 16;                           \
+    (hash)= PeRlHaSh_h1;                                        \
+} STMT_END
+
+/* now we create the hash function */
+
+#if defined(UNALIGNED_SAFE)
+#define PERL_HASH(hash,str,len) STMT_START { \
+        register const char * const s_PeRlHaSh_tmp = (str); \
+        register const unsigned char *PeRlHaSh_ptr = (const unsigned char *)s_PeRlHaSh_tmp; \
+        register I32 PeRlHaSh_len = len;    \
+                                            \
+        U32 PeRlHaSh_h1 = PERL_HASH_SEED;   \
+        U32 PeRlHaSh_k1;                    \
+        U32 PeRlHaSh_carry = 0;             \
+                                            \
+        const unsigned char *PeRlHaSh_end;  \
+                                            \
+        int PeRlHaSh_bytes_in_carry = 0; /* bytes in carry */ \
+        I32 PeRlHaSh_total_length= PeRlHaSh_len; \
+                                            \
+        /* This CPU handles unaligned word access */            \
+        /* Process 32-bit chunks */                             \
+        PeRlHaSh_end = PeRlHaSh_ptr + PeRlHaSh_len/4*4;         \
+        for( ; PeRlHaSh_ptr < PeRlHaSh_end ; PeRlHaSh_ptr+=4) { \
+            PeRlHaSh_k1 = MURMUR_READ_UINT32(PeRlHaSh_ptr);        \
+            MURMUR_DOBLOCK(PeRlHaSh_h1, PeRlHaSh_k1);                  \
+        }                                                       \
+        \
+        MURMUR_FINALIZE(hash, PeRlHaSh_len, PeRlHaSh_k1, PeRlHaSh_h1, PeRlHaSh_carry, PeRlHaSh_bytes_in_carry, PeRlHaSh_ptr, PeRlHaSh_total_length);\
+    } STMT_END
+#else
+#define PERL_HASH(hash,str,len) STMT_START { \
+        register const char * const s_PeRlHaSh_tmp = (str); \
+        register const unsigned char *PeRlHaSh_ptr = (const unsigned char *)s_PeRlHaSh_tmp; \
+        register I32 PeRlHaSh_len = len;    \
+                                            \
+        U32 PeRlHaSh_h1 = PERL_HASH_SEED;   \
+        U32 PeRlHaSh_k1;                    \
+        U32 PeRlHaSh_carry = 0;             \
+                                            \
+        const unsigned char *PeRlHaSh_end;  \
+                                            \
+        int PeRlHaSh_bytes_in_carry = 0; /* bytes in carry */ \
+        I32 PeRlHaSh_total_length= PeRlHaSh_len; \
+                                            \
+        /* This CPU does not handle unaligned word access */    \
+                                                                \
+        /* Consume enough so that the next data byte is word aligned */ \
+        int PeRlHaSh_i = -(long)PeRlHaSh_ptr & 3;                       \
+        if(PeRlHaSh_i && PeRlHaSh_i <= PeRlHaSh_len) {                  \
+          MURMUR_DOBYTES(PeRlHaSh_i, PeRlHaSh_h1, PeRlHaSh_carry, PeRlHaSh_bytes_in_carry, PeRlHaSh_ptr, PeRlHaSh_len);\
+        }                                                               \
+        \
+        /* We're now aligned. Process in aligned blocks. Specialise for each possible carry count */ \
+        PeRlHaSh_end = PeRlHaSh_ptr + PeRlHaSh_len/4*4;                 \
+        switch(PeRlHaSh_bytes_in_carry) { /* how many bytes in carry */                  \
+            case 0: /* c=[----]  w=[3210]  b=[3210]=w            c'=[----] */ \
+            for( ; PeRlHaSh_ptr < PeRlHaSh_end ; PeRlHaSh_ptr+=4) { \
+                PeRlHaSh_k1 = MURMUR_READ_UINT32(PeRlHaSh_ptr);        \
+                MURMUR_DOBLOCK(PeRlHaSh_h1, PeRlHaSh_k1);                  \
+            }                                                       \
+            break;                                                  \
+            case 1: /* c=[0---]  w=[4321]  b=[3210]=c>>24|w<<8   c'=[4---] */   \
+            for( ; PeRlHaSh_ptr < PeRlHaSh_end ; PeRlHaSh_ptr+=4) { \
+                PeRlHaSh_k1 = PeRlHaSh_carry>>24;                   \
+                PeRlHaSh_carry = MURMUR_READ_UINT32(PeRlHaSh_ptr);             \
+                PeRlHaSh_k1 |= PeRlHaSh_carry<<8;                       \
+                MURMUR_DOBLOCK(PeRlHaSh_h1, PeRlHaSh_k1);                  \
+            }                                                       \
+            break;                                                  \
+            case 2: /* c=[10--]  w=[5432]  b=[3210]=c>>16|w<<16  c'=[54--] */   \
+            for( ; PeRlHaSh_ptr < PeRlHaSh_end ; PeRlHaSh_ptr+=4) { \
+                PeRlHaSh_k1 = PeRlHaSh_carry>>16;                   \
+                PeRlHaSh_carry = MURMUR_READ_UINT32(PeRlHaSh_ptr);             \
+                PeRlHaSh_k1 |= PeRlHaSh_carry<<16;                      \
+                MURMUR_DOBLOCK(PeRlHaSh_h1, PeRlHaSh_k1);                  \
+            }                                                       \
+            break;                                                  \
+            case 3: /* c=[210-]  w=[6543]  b=[3210]=c>>8|w<<24   c'=[654-] */   \
+            for( ; PeRlHaSh_ptr < PeRlHaSh_end ; PeRlHaSh_ptr+=4) { \
+                PeRlHaSh_k1 = PeRlHaSh_carry>>8;                    \
+                PeRlHaSh_carry = MURMUR_READ_UINT32(PeRlHaSh_ptr);             \
+                PeRlHaSh_k1 |= PeRlHaSh_carry<<24;                      \
+                MURMUR_DOBLOCK(PeRlHaSh_h1, PeRlHaSh_k1);                  \
+            }                                                       \
+        }                                                           \
+                                                                    \
+        MURMUR_FINALIZE(hash, PeRlHaSh_len, PeRlHaSh_k1, PeRlHaSh_h1, PeRlHaSh_carry, PeRlHaSh_bytes_in_carry, PeRlHaSh_ptr, PeRlHaSh_total_length);\
+    } STMT_END
+#endif
+
+#elif defined(PERL_HASH_FUNC_DJB2)
+#define PERL_HASH_FUNC "DJB2"
+#define PERL_HASH(hash,str,len) \
+     STMT_START        { \
+        register const char * const s_PeRlHaSh_tmp = (str); \
+        register const unsigned char *s_PeRlHaSh = (const unsigned char *)s_PeRlHaSh_tmp; \
+        register I32 i_PeRlHaSh = len; \
+        register U32 hash_PeRlHaSh = PERL_HASH_SEED ^ len; \
+        assert( PERL_HASH_SEED_SET == TRUE ); \
+        while (i_PeRlHaSh--) { \
+            hash_PeRlHaSh = ((hash_PeRlHaSh << 5) + hash_PeRlHaSh) + *s_PeRlHaSh++; \
+        } \
+        (hash) = hash_PeRlHaSh;\
+    } STMT_END
+
+#elif defined(PERL_HASH_FUNC_SDBM)
+#define PERL_HASH_FUNC "SDBM"
+#define PERL_HASH(hash,str,len) \
+     STMT_START        { \
+        register const char * const s_PeRlHaSh_tmp = (str); \
+        register const unsigned char *s_PeRlHaSh = (const unsigned char *)s_PeRlHaSh_tmp; \
+        register I32 i_PeRlHaSh = len; \
+        register U32 hash_PeRlHaSh = PERL_HASH_SEED ^ len; \
+        assert( PERL_HASH_SEED_SET == TRUE ); \
+        while (i_PeRlHaSh--) { \
+            hash_PeRlHaSh = (hash_PeRlHaSh << 6) + (hash_PeRlHaSh << 16) - hash_PeRlHaSh + *s_PeRlHaSh++; \
+        } \
+        (hash) = hash_PeRlHaSh;\
+    } STMT_END
+
+#else
+/* DEFAULT/HISTORIC HASH FUNCTION */
+#define PERL_HASH_FUNC_ONE_AT_A_TIME
+#define PERL_HASH_FUNC "ONE_AT_A_TIME"
+
+/* FYI: This is the "One-at-a-Time" algorithm by Bob Jenkins
+ * from requirements by Colin Plumb.
+ * (http://burtleburtle.net/bob/hash/doobs.html) */
 #define PERL_HASH(hash,str,len) \
      STMT_START	{ \
-	const char * const s_PeRlHaSh_tmp = str; \
-	const unsigned char *s_PeRlHaSh = (const unsigned char *)s_PeRlHaSh_tmp; \
-	I32 i_PeRlHaSh = len; \
-        U32 hash_PeRlHaSh = PERL_HASH_SEED ^ len; \
+        register const char * const s_PeRlHaSh_tmp = (str); \
+        register const unsigned char *s_PeRlHaSh = (const unsigned char *)s_PeRlHaSh_tmp; \
+        register I32 i_PeRlHaSh = len; \
+        register U32 hash_PeRlHaSh = PERL_HASH_SEED ^ len; \
         assert( PERL_HASH_SEED_SET == TRUE ); \
 	while (i_PeRlHaSh--) { \
-	    hash_PeRlHaSh += *s_PeRlHaSh++; \
+            hash_PeRlHaSh += (U8)*s_PeRlHaSh++; \
 	    hash_PeRlHaSh += (hash_PeRlHaSh << 10); \
 	    hash_PeRlHaSh ^= (hash_PeRlHaSh >> 6); \
 	} \
@@ -153,7 +513,10 @@ struct xpvhv {
 	hash_PeRlHaSh ^= (hash_PeRlHaSh >> 11); \
 	(hash) = (hash_PeRlHaSh + (hash_PeRlHaSh << 15)); \
     } STMT_END
-
+#endif
+#ifndef PERL_HASH
+#error "No hash function defined!"
+#endif
 /*
 =head1 Hash Manipulation Functions
 
