@@ -467,11 +467,11 @@ see L<perlsec/"Algorithmic Complexity Attacks"> for more information.
 B<Do not disclose the hash seed> to people who don't need to know it.
 See also L<perlrun/PERL_HASH_SEED_DEBUG>.
 
+Note this is the same as calling hash::seed() as of Perl 5.17.6
+
 =cut
 
-sub hash_seed () {
-    Internals::hash_seed();
-}
+*hash_seed= *hash::seed;
 
 =item B<hv_store>
 
