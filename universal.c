@@ -1086,7 +1086,7 @@ XS(XS_PerlIO_get_layers)
     XSRETURN(0);
 }
 
-XS(XS_Internals_hash_seed)
+XS(XS_hash_seed)
 {
     dVAR;
     /* Using dXSARGS would also have dITEM and dSP,
@@ -1096,6 +1096,173 @@ XS(XS_Internals_hash_seed)
     PERL_UNUSED_VAR(mark);
     assert(PERL_HASH_SEED_SET == TRUE);
     XSRETURN_UV(PERL_HASH_SEED);
+}
+
+XS(XS_hash_function_name)
+{
+    dVAR;
+    /* Using dXSARGS would also have dITEM and dSP,
+     * which define 2 unused local variables.  */
+    dAXMARK;
+    PERL_UNUSED_ARG(cv);
+    PERL_UNUSED_VAR(mark);
+    XSRETURN_PV(PERL_HASH_FUNC);
+}
+
+XS(XS_hash_value)        /* Subject to change  */
+{
+    dVAR;
+    dXSARGS;
+    STRLEN len;
+    char *pv;
+    UV uv;
+
+    PERL_UNUSED_ARG(cv);
+
+    pv= SvPV(ST(0),len);
+    PERL_HASH(uv,pv,len);
+    XSRETURN_UV(uv);
+}
+
+/*
+
+Takes a non-magical hash ref as an argument and returns a list of
+statistics about the hash. The number and keys and the size of the
+array will always be reported as the first two values. If the array is
+actually allocated (they are lazily allocated), then additionally
+will return a list of counts of bucket lengths. In other words in
+
+    ($keys, $buckets, $used, @length_count)= hash::bucket_info(\%hash);
+
+$length_count[0] is the number of empty buckets, and $length_count[1]
+is the number of buckets with only one key in it, $buckets - $length_count[0]
+gives the number of used buckets, and @length_count-1 is the maximum
+bucket depth.
+
+If the argument is not a hash ref, or if it is magical, then returns
+nothing (the empty list).
+
+*/
+
+XS(XS_hash_bucket_info)
+{
+    dVAR;
+    dXSARGS;
+    PERL_UNUSED_ARG(cv);
+    if (SvROK(ST(0)) && SvTYPE(SvRV(ST(0)))==SVt_PVHV && !SvMAGICAL(SvRV(ST(0)))) {
+        const HV * const hv = (const HV *) SvRV(POPs);
+        U32 max_bucket_index= HvMAX(hv);
+        U32 total_keys= HvUSEDKEYS(hv);
+        HE **bucket_array= HvARRAY(hv);
+        mXPUSHi(total_keys);
+        mXPUSHi(max_bucket_index+1);
+        mXPUSHi(0); /* for the number of used buckets */
+#define BUCKET_INFO_ITEMS_ON_STACK 3
+        if (!bucket_array) {
+            XSRETURN(BUCKET_INFO_ITEMS_ON_STACK);
+        } else {
+            /* we use chain_length to index the stack - we eliminate an add
+             * by initializing things with the number of items already on the stack.
+             * If we have 2 items then ST(2+0) (the third stack item) will be the counter
+             * for empty chains, ST(2+1) will be for chains with one element,  etc.
+             */
+            I32 max_chain_length= BUCKET_INFO_ITEMS_ON_STACK - 1; /* so we do not have to do an extra push for the 0 index */
+            HE *he;
+            U32 bucket_index;
+            for ( bucket_index= 0; bucket_index <= max_bucket_index; bucket_index++ ) {
+                I32 chain_length= BUCKET_INFO_ITEMS_ON_STACK;
+                for (he= bucket_array[bucket_index]; he; he= HeNEXT(he) ) {
+                    chain_length++;
+                }
+                while ( max_chain_length < chain_length ) {
+                    mXPUSHi(0);
+                    max_chain_length++;
+                }
+                SvIVX( ST( chain_length ) )++;
+            }
+            /* now set the number of used buckets */
+            SvIVX( ST( BUCKET_INFO_ITEMS_ON_STACK - 1 ) ) = max_bucket_index - SvIVX( ST( BUCKET_INFO_ITEMS_ON_STACK ) ) + 1;
+            XSRETURN( max_chain_length + 1 ); /* max_chain_length is the index of the last item on the stack, so we add 1 */
+        }
+#undef BUCKET_INFO_ITEMS_ON_STACK
+    }
+    XSRETURN(0);
+}
+
+/* Returns an array of arrays representing key/bucket mappings.
+ * Each element of the array contains either an integer or a reference
+ * to an array of keys. A plain integer represents K empty buckets. An
+ * array ref represents a single bucket, with each element being a key in
+ * the hash. (Note this treats a placeholder as a normal key.)
+ *
+ * This allows one to "see" the keyorder. Note the "insert first" nature
+ * of the hash store, combined with regular remappings means that relative
+ * order of keys changes each remap.
+ */
+
+XS(XS_hash_bucket_array)
+{
+    dVAR;
+    dXSARGS;
+    PERL_UNUSED_ARG(cv);
+    if (items == 1 && SvROK(ST(0)) && SvTYPE(SvRV(ST(0)))==SVt_PVHV && !SvMAGICAL(SvRV(ST(0)))) {
+        const HV * const hv = (const HV *) SvRV(POPs);
+        HE **he_ptr= HvARRAY(hv);
+        if (!he_ptr) {
+            XSRETURN(0);
+        } else {
+            U32 i, max;
+            AV *info_av;
+            HE *he;
+            I32 empty_count=0;
+            if (SvMAGICAL(hv)) {
+                Perl_croak(aTHX_ "hash::bucket_array only works on 'normal' hashes");
+            }
+            info_av= newAV();
+            max= HvMAX(hv);
+            ST(0)= sv_2mortal(newRV_noinc((SV*)info_av));
+            for ( i= 0; i <= max; i++ ) {
+                AV *key_av= NULL;
+                for (he= he_ptr[i]; he; he= HeNEXT(he) ) {
+                    SV *key_sv;
+                    if (!key_av) {
+                        key_av= newAV();
+                        if (empty_count) {
+                            av_push(info_av, newSViv(empty_count));
+                            empty_count= 0;
+                        }
+                        av_push(info_av, (SV *)newRV_noinc((SV *)key_av));
+                    }
+                    char *str;
+                    STRLEN len;
+                    char mode;
+                    if (HeKLEN(he) == HEf_SVKEY) {
+                        SV *sv= HeSVKEY(he);
+                        SvGETMAGIC(sv);
+                        str= SvPV(sv, len);
+                        mode= SvUTF8(sv) ? 1 : 0;
+                    } else {
+                        str= HeKEY(he);
+                        len= HeKLEN(he);
+                        mode= HeKUTF8(he) ? 1 : 0;
+                    }
+                    key_sv= newSVpvn(str,len);
+                    av_push(key_av,key_sv);
+                    if (mode) {
+                        SvUTF8_on(key_sv);
+                    }
+                }
+                if (!key_av)
+                    empty_count++;
+            }
+            if (empty_count) {
+                av_push(info_av, newSViv(empty_count));
+                empty_count++;
+            }
+        }
+    } else {
+        Perl_croak(aTHX_ "hash::bucket_array takes only one argument, a $hashref, and only works on non-magical hashes");
+    }
 }
 
 XS(XS_re_is_regexp)
@@ -1376,7 +1543,13 @@ const struct xsub_details details[] = {
     {"Internals::SvREFCNT", XS_Internals_SvREFCNT, "\\[$%@];$"},
     {"Internals::hv_clear_placeholders", XS_Internals_hv_clear_placehold, "\\%"},
     {"PerlIO::get_layers", XS_PerlIO_get_layers, "*;@"},
-    {"Internals::hash_seed", XS_Internals_hash_seed, ""},
+
+    {"hash::seed", XS_hash_seed, ""},
+    {"hash::function_name", XS_hash_function_name, ""},
+    {"hash::value", XS_hash_value, "$"},
+    {"hash::bucket_array", XS_hash_bucket_array, "$"},
+    {"hash::bucket_info", XS_hash_bucket_info, "$"},
+
     {"re::is_regexp", XS_re_is_regexp, "$"},
     {"re::regname", XS_re_regname, ";$$"},
     {"re::regnames", XS_re_regnames, ";$"},
