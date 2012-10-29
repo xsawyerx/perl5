@@ -60,3 +60,31 @@ hv_store(hash, key, val)
 	    XSRETURN_YES;
 	}
     }
+
+
+
+void
+hash_seed()
+    PROTOTYPE:
+    CODE:
+    assert(PERL_HASH_SEED_SET == TRUE);
+    XSRETURN_UV((PERL_HASH_SEED) & 0xFFFFFFFF);
+
+void
+hash_function_name()
+    PROTOTYPE:
+    CODE:
+    XSRETURN_PV(PERL_HASH_FUNC);
+
+void
+hash_value(string)
+	SV* string
+    PROTOTYPE: $
+    CODE:
+    STRLEN len;
+    char *pv;
+    UV uv;
+
+    pv= SvPV(string,len);
+    PERL_HASH(uv,pv,len);
+    XSRETURN_UV(uv);
