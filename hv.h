@@ -135,10 +135,10 @@ struct xpvhv {
 #endif
 
 /* Uncomment one of the following lines to use an alternative hash algorithm.
-#define PERL_HASH_FUNC_SUPERFAST
 #define PERL_HASH_FUNC_SDBM
 #define PERL_HASH_FUNC_DJB2
 #define PERL_HASH_FUNC_MURMUR3
+#define PERL_HASH_FUNC_SUPERFAST
 */
 
 
