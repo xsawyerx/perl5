@@ -139,7 +139,6 @@
 #define PL_custom_ops		(vTHX->Icustom_ops)
 #define PL_cv_has_eval		(vTHX->Icv_has_eval)
 #define PL_dbargs		(vTHX->Idbargs)
-#define PL_dead_var_left_for_bin_compat	(vTHX->Idead_var_left_for_bin_compat)
 #define PL_debstash		(vTHX->Idebstash)
 #define PL_debug		(vTHX->Idebug)
 #define PL_debug_pad		(vTHX->Idebug_pad)
