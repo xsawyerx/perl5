@@ -108,6 +108,19 @@ S_init_tls_and_interp(PerlInterpreter *my_perl)
 	MUTEX_INIT(&PL_dollarzero_mutex);
 	MUTEX_INIT(&PL_my_ctx_mutex);
 #  endif
+#if defined(USE_HASH_SEED) || defined(USE_HASH_SEED_EXPLICIT)
+        /* [perl #22371] Algorimic Complexity Attack on Perl 5.6.1, 5.8.0
+         * This MUST be done before any hash stores or fetches take place.
+         * If you set PL_hash_seed (and presumably also PL_hash_seed_set)
+         * yourself, it is your responsibility to provide a good random seed!
+         * You can also define PERL_HASH_SEED in compile time, see hv.h.
+         *
+         * XXX: fix this comment */
+        PL_hash_seed  = get_hash_seed("PERL_HASH_SEED");
+#if defined(PERL_HASH_NEEDS_TWO_SEEDS)
+        PL_hash_seed2 = get_hash_seed("PERL_HASH_SEED2");
+#endif
+#endif /* #if defined(USE_HASH_SEED) || defined(USE_HASH_SEED_EXPLICIT) */
     }
 #if defined(USE_ITHREADS)
     else
@@ -1476,27 +1489,19 @@ perl_parse(pTHXx_ XSINIT_t xsinit, int argc, char **argv, char **env)
 #ifndef MULTIPLICITY
     PERL_UNUSED_ARG(my_perl);
 #endif
-
 #if defined(USE_HASH_SEED) || defined(USE_HASH_SEED_EXPLICIT)
-    /* [perl #22371] Algorimic Complexity Attack on Perl 5.6.1, 5.8.0
-     * This MUST be done before any hash stores or fetches take place.
-     * If you set PL_hash_seed (and presumably also PL_hash_seed_set)
-     * yourself, it is your responsibility to provide a good random seed!
-     * You can also define PERL_HASH_SEED in compile time, see hv.h.
-     *
-     * XXX: fix this comment */
-    if (!PL_hash_seed_set) {
-         PL_hash_seed = get_hash_seed();
-         PL_hash_seed_set = TRUE;
-    }
     {
-	const char * const s = PerlEnv_getenv("PERL_HASH_SEED_DEBUG");
+        const char * const s = PerlEnv_getenv("PERL_HASH_SEED_DEBUG");
 
-	if (s && (atoi(s) == 1))
-            PerlIO_printf(Perl_debug_log, "HASH_FUNCTION = %s HASH_SEED = 0x%08x\n", PERL_HASH_FUNC, (U32)PL_hash_seed);
+        if (s && (atoi(s) == 1))
+#ifndef PERL_HASH_NEEDS_TWO_SEEDS
+            PerlIO_printf(Perl_debug_log, "HASH_FUNCTION = %s HASH_SEED = 0x%"UVxf"\n", PERL_HASH_FUNC, (UV)PL_hash_seed);
+#else
+            PerlIO_printf(Perl_debug_log, "HASH_FUNCTION = %s HASH_SEED1 = 0x%"UVxf" HASH_SEED2 = 0x%"UVxf"\n",
+                    PERL_HASH_FUNC, (UV)PL_hash_seed, (UV)PL_hash_seed2);
+#endif
     }
 #endif /* #if defined(USE_HASH_SEED) || defined(USE_HASH_SEED_EXPLICIT) */
-
     PL_origargc = argc;
     PL_origargv = argv;
 

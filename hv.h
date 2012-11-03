@@ -565,7 +565,6 @@ struct xpvhv {
         register const unsigned char *s_PeRlHaSh = (const unsigned char *)s_PeRlHaSh_tmp; \
         register I32 i_PeRlHaSh = len; \
         register U32 hash_PeRlHaSh = PERL_HASH_SEED ^ len; \
-        assert( PERL_HASH_SEED_SET == TRUE ); \
         while (i_PeRlHaSh--) { \
             hash_PeRlHaSh = ((hash_PeRlHaSh << 5) + hash_PeRlHaSh) + *s_PeRlHaSh++; \
         } \
@@ -580,7 +579,6 @@ struct xpvhv {
         register const unsigned char *s_PeRlHaSh = (const unsigned char *)s_PeRlHaSh_tmp; \
         register I32 i_PeRlHaSh = len; \
         register U32 hash_PeRlHaSh = PERL_HASH_SEED ^ len; \
-        assert( PERL_HASH_SEED_SET == TRUE ); \
         while (i_PeRlHaSh--) { \
             hash_PeRlHaSh = (hash_PeRlHaSh << 6) + (hash_PeRlHaSh << 16) - hash_PeRlHaSh + *s_PeRlHaSh++; \
         } \
@@ -601,7 +599,6 @@ struct xpvhv {
         register const unsigned char *s_PeRlHaSh = (const unsigned char *)s_PeRlHaSh_tmp; \
         register I32 i_PeRlHaSh = len; \
         register U32 hash_PeRlHaSh = PERL_HASH_SEED ^ len; \
-        assert( PERL_HASH_SEED_SET == TRUE ); \
 	while (i_PeRlHaSh--) { \
             hash_PeRlHaSh += (U8)*s_PeRlHaSh++; \
 	    hash_PeRlHaSh += (hash_PeRlHaSh << 10); \

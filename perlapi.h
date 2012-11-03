@@ -115,6 +115,10 @@ END_EXTERN_C
 #define PL_dollarzero_mutex	(*Perl_Gdollarzero_mutex_ptr(NULL))
 #undef  PL_fold_locale
 #define PL_fold_locale		(*Perl_Gfold_locale_ptr(NULL))
+#undef  PL_hash_seed
+#define PL_hash_seed		(*Perl_Ghash_seed_ptr(NULL))
+#undef  PL_hash_seed2
+#define PL_hash_seed2		(*Perl_Ghash_seed2_ptr(NULL))
 #undef  PL_hints_mutex
 #define PL_hints_mutex		(*Perl_Ghints_mutex_ptr(NULL))
 #undef  PL_keyword_plugin

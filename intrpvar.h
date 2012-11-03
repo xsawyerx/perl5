@@ -738,9 +738,6 @@ PERLVARI(I, destroyhook, destroyable_proc_t, Perl_sv_destroyable)
 PERLVARI(I, signalhook,	despatch_signals_proc_t, Perl_despatch_signals)
 #endif
 
-PERLVARI(I, hash_seed,	UV,	0)	    /* 5.17.6 - Hash seed */
-PERLVARI(I, hash_seed_set, bool, FALSE)     /* 5.17.6 - Is hash seed initialized? */
-
 PERLVARI(I, isarev, HV *, NULL)		/* Reverse map of @ISA dependencies */
 
 /* Register of known Method Resolution Orders.

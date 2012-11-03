@@ -1094,7 +1094,6 @@ XS(XS_hash_seed)
     dAXMARK;
     PERL_UNUSED_ARG(cv);
     PERL_UNUSED_VAR(mark);
-    assert(PERL_HASH_SEED_SET == TRUE);
     XSRETURN_UV(PERL_HASH_SEED);
 }
 

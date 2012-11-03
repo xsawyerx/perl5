@@ -5645,10 +5645,10 @@ Perl_seed(pTHX)
 }
 
 UV
-Perl_get_hash_seed(pTHX)
+Perl_get_hash_seed(pTHX_ const char * const env_key)
 {
-    dVAR;
-     const char *s = PerlEnv_getenv("PERL_HASH_SEED");
+     dVAR;
+     const char *s = PerlEnv_getenv(env_key);
      UV myseed = 0;
 
      if (s)
@@ -5661,9 +5661,34 @@ Perl_get_hash_seed(pTHX)
      if (s)
 #endif
      {
+
+#ifdef PERL_REENTR_API
+          /* Compute a random seed */
+         struct drand48_data buffer;
+         double value;
+         srand48_r(seed(), &buffer);
+         drand48_r(&buffer, &value);
+         myseed = (UV)(value * (NV)UV_MAX);
+#if RANDBITS < (UVSIZE * 8)
+          /* Since there are not enough randbits to to reach all
+           * the bits of a UV, the low bits might need extra
+           * help.  Sum in another random number that will
+           * fill in the low bits. */
+         drand48_r(&buffer, &value);
+         myseed +=
+               (UV)(value * (NV)((((UV)1) << ((UVSIZE * 8 - RANDBITS))) - 1));
+          if (myseed == 0) { /* Superparanoia. */
+              drand48_r(&buffer, &value);
+              myseed = (UV)(value * (NV)UV_MAX); /* One more chance. */
+              if (myseed == 0)
+                  Perl_croak(aTHX_ "Your random numbers are not that random");
+          }
+#endif /* RANDBITS < (UVSIZE * 8) */
+#else
 	  /* Compute a random seed */
 	  (void)seedDrand01((Rand_seed_t)seed());
 	  myseed = (UV)(Drand01() * (NV)UV_MAX);
+
 #if RANDBITS < (UVSIZE * 8)
 	  /* Since there are not enough randbits to to reach all
 	   * the bits of a UV, the low bits might need extra
@@ -5677,6 +5702,7 @@ Perl_get_hash_seed(pTHX)
 	      if (myseed == 0)
 		  Perl_croak(aTHX_ "Your random numbers are not that random");
 	  }
+#endif
      }
     return myseed;
 }
