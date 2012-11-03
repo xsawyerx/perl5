@@ -116,18 +116,20 @@ struct xpvhv {
  * If USE_HASH_SEED_EXPLICIT is defined, hash randomisation is done
  * only if the environment variable PERL_HASH_SEED is set.
  * For maximal control, one can define PERL_HASH_SEED.
- * (see also perl.c:perl_parse()).
+ * (see also perl.c:perl_parse() and S_init_tls_and_interp() and util.c:get_hash_seed())
  */
+
 #ifndef PERL_HASH_SEED
-#   if defined(USE_HASH_SEED) || defined(USE_HASH_SEED_EXPLICIT)
-#       define PERL_HASH_SEED	PL_hash_seed
-#       define PERL_HASH_SEED_SET PL_hash_seed_set
-#       define PERL_HASH_SEED_REQUIRES_COPY_IN_THREAD
+#  if defined(USE_HASH_SEED) || defined(USE_HASH_SEED_EXPLICIT)
+#       define PERL_HASH_SEED   PL_hash_seed
+#       define PERL_HASH_SEED2  PL_hash_seed2
 #   else
-#       define PERL_HASH_SEED	0
-#       define PERL_HASH_SEED_SET TRUE
+#       /* "PerlHack" and "hAsHfUnC" - should not be 0 really */
+#       define PERL_HASH_SEED   0x6cf4f24d51017686
+#       define PERL_HASH_SEED2  0x2ff90b26510143a4
 #   endif
 #endif
+
 
 /* legacy - only mod_perl should be doing this.  */
 #ifdef PERL_HASH_INTERNAL_ACCESS
@@ -137,12 +139,122 @@ struct xpvhv {
 /* Uncomment one of the following lines to use an alternative hash algorithm.
 #define PERL_HASH_FUNC_SDBM
 #define PERL_HASH_FUNC_DJB2
-#define PERL_HASH_FUNC_MURMUR3
 #define PERL_HASH_FUNC_SUPERFAST
+#define PERL_HASH_FUNC_MURMUR3
+#define PERL_HASH_FUNC_SIPHASH
 */
 
+#if defined(PERL_HASH_FUNC_SIPHASH)
+#define PERL_HASH_FUNC "SIPHASH"
 
-#if defined(PERL_HASH_FUNC_SUPERFAST)
+/* This is SipHash by Jean-Philippe Aumasson and Daniel J. Bernstein.
+ * The authors claim it is relatively secure compared to the alternatives
+ * and that performance wise it is a suitable hash for languages like Perl.
+ * See:
+ *
+ * https://www.131002.net/siphash/
+ *
+ * This implementation seems to perform slightly slower than one-at-a-time for
+ * short keys, but degrades slower for longer keys. Murmur Hash outperforms it
+ * regardless of keys size.
+ *
+ * It is 64 bit only.
+ */
+
+#define PERL_HASH_NEEDS_TWO_SEEDS
+
+#ifndef U64
+#define U64 uint64_t
+#endif
+
+#define ROTL(x,b) (U64)( ((x) << (b)) | ( (x) >> (64 - (b))) )
+
+#define U32TO8_LE(p, v)         \
+    (p)[0] = (U8)((v)      ); (p)[1] = (U8)((v) >>  8); \
+    (p)[2] = (U8)((v) >> 16); (p)[3] = (U8)((v) >> 24);
+
+#define U64TO8_LE(p, v)         \
+  U32TO8_LE((p),     (U32)((v)      ));   \
+  U32TO8_LE((p) + 4, (U32)((v) >> 32));
+
+#define U8TO64_LE(p) \
+  (((U64)((p)[0])      ) | \
+   ((U64)((p)[1]) <<  8) | \
+   ((U64)((p)[2]) << 16) | \
+   ((U64)((p)[3]) << 24) | \
+   ((U64)((p)[4]) << 32) | \
+   ((U64)((p)[5]) << 40) | \
+   ((U64)((p)[6]) << 48) | \
+   ((U64)((p)[7]) << 56))
+
+#define SIPROUND            \
+  do {              \
+    v0_PeRlHaSh += v1_PeRlHaSh; v1_PeRlHaSh=ROTL(v1_PeRlHaSh,13); v1_PeRlHaSh ^= v0_PeRlHaSh; v0_PeRlHaSh=ROTL(v0_PeRlHaSh,32); \
+    v2_PeRlHaSh += v3_PeRlHaSh; v3_PeRlHaSh=ROTL(v3_PeRlHaSh,16); v3_PeRlHaSh ^= v2_PeRlHaSh;     \
+    v0_PeRlHaSh += v3_PeRlHaSh; v3_PeRlHaSh=ROTL(v3_PeRlHaSh,21); v3_PeRlHaSh ^= v0_PeRlHaSh;     \
+    v2_PeRlHaSh += v1_PeRlHaSh; v1_PeRlHaSh=ROTL(v1_PeRlHaSh,17); v1_PeRlHaSh ^= v2_PeRlHaSh; v2_PeRlHaSh=ROTL(v2_PeRlHaSh,32); \
+  } while(0)
+
+/* SipHash-2-4 */
+#define PERL_HASH(hash,str,len) STMT_START { \
+  const char * const strtmp_PeRlHaSh = (str); \
+  const unsigned char *in_PeRlHaSh = (const unsigned char *)strtmp_PeRlHaSh; \
+  const U32 inlen_PeRlHaSh = (len); \
+  /* "somepseudorandomlygeneratedbytes" */ \
+  U64 v0_PeRlHaSh = 0x736f6d6570736575ULL; \
+  U64 v1_PeRlHaSh = 0x646f72616e646f6dULL; \
+  U64 v2_PeRlHaSh = 0x6c7967656e657261ULL; \
+  U64 v3_PeRlHaSh = 0x7465646279746573ULL; \
+\
+  U64 b_PeRlHaSh;                           \
+  U64 k0_PeRlHaSh = PERL_HASH_SEED;         \
+  U64 k1_PeRlHaSh = PERL_HASH_SEED2;        \
+  U64 m_PeRlHaSh;                           \
+  const int left_PeRlHaSh = inlen_PeRlHaSh & 7; \
+  const U8 *end_PeRlHaSh = in_PeRlHaSh + inlen_PeRlHaSh - left_PeRlHaSh; \
+\
+  b_PeRlHaSh = ( ( U64 )(len) ) << 56; \
+  v3_PeRlHaSh ^= k1_PeRlHaSh; \
+  v2_PeRlHaSh ^= k0_PeRlHaSh; \
+  v1_PeRlHaSh ^= k1_PeRlHaSh; \
+  v0_PeRlHaSh ^= k0_PeRlHaSh; \
+\
+  for ( ; in_PeRlHaSh != end_PeRlHaSh; in_PeRlHaSh += 8 ) \
+  { \
+    m_PeRlHaSh = U8TO64_LE( in_PeRlHaSh ); \
+    v3_PeRlHaSh ^= m_PeRlHaSh; \
+    SIPROUND; \
+    SIPROUND; \
+    v0_PeRlHaSh ^= m_PeRlHaSh; \
+  } \
+\
+  switch( left_PeRlHaSh ) \
+  { \
+  case 7: b_PeRlHaSh |= ( ( U64 )in_PeRlHaSh[ 6] )  << 48; \
+  case 6: b_PeRlHaSh |= ( ( U64 )in_PeRlHaSh[ 5] )  << 40; \
+  case 5: b_PeRlHaSh |= ( ( U64 )in_PeRlHaSh[ 4] )  << 32; \
+  case 4: b_PeRlHaSh |= ( ( U64 )in_PeRlHaSh[ 3] )  << 24; \
+  case 3: b_PeRlHaSh |= ( ( U64 )in_PeRlHaSh[ 2] )  << 16; \
+  case 2: b_PeRlHaSh |= ( ( U64 )in_PeRlHaSh[ 1] )  <<  8; \
+  case 1: b_PeRlHaSh |= ( ( U64 )in_PeRlHaSh[ 0] ); break; \
+  case 0: break; \
+  } \
+\
+  v3_PeRlHaSh ^= b_PeRlHaSh; \
+  SIPROUND; \
+  SIPROUND; \
+  v0_PeRlHaSh ^= b_PeRlHaSh; \
+\
+  v2_PeRlHaSh ^= 0xff; \
+  SIPROUND; \
+  SIPROUND; \
+  SIPROUND; \
+  SIPROUND; \
+  b_PeRlHaSh = v0_PeRlHaSh ^ v1_PeRlHaSh ^ v2_PeRlHaSh  ^ v3_PeRlHaSh; \
+  (hash)= (U32)(b_PeRlHaSh & U32_MAX); \
+} STMT_END
+
+#elif defined(PERL_HASH_FUNC_SUPERFAST)
 #define PERL_HASH_FUNC "SUPERFAST"
 /* FYI: This is the "Super-Fast" algorithm mentioned by Bob Jenkins in
  * (http://burtleburtle.net/bob/hash/doobs.html)
