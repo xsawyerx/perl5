@@ -473,6 +473,19 @@ Note this is the same as calling hash::seed() as of Perl 5.17.6
 
 *hash_seed= *hash::seed;
 
+sub bucket_stats {
+    my ($hash)= @_;
+    my ($keys, $buckets, $used, $empty, @length_counts)= bucket_info($hash);
+    my $sum;
+    $sum += ($length_counts[$_] * ($_+1)) for 0 .. $#length_counts;
+    my $mean= $sum/$buckets;
+    $sum= 0;
+    $sum += ($length_counts[$_] * ((($_+1)-$mean)**2)) for 0 .. $#length_counts;
+
+    my $stddev= sqrt($sum/$buckets);
+    return $keys, $buckets, $used, $empty, $used/$buckets, ($keys-$used)/$keys, $mean, $stddev, 0+@length_counts, @length_counts
+}
+
 =item B<hv_store>
 
   my $sv = 0;
