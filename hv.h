@@ -147,6 +147,20 @@ struct xpvhv {
 #if defined(PERL_HASH_FUNC_SIPHASH)
 #define PERL_HASH_FUNC "SIPHASH"
 
+/* This is SipHash by Jean-Philippe Aumasson and Daniel J. Bernstein.
+ * The authors claim it is relatively secure compared to the alternatives
+ * and that performance wise it is a suitable hash for languages like Perl.
+ * See:
+ *
+ * https://www.131002.net/siphash/
+ *
+ * This implementation seems to perform slightly slower than one-at-a-time for
+ * short keys, but degrades slower for longer keys. Murmur Hash outperforms it
+ * regardless of keys size.
+ *
+ * It is 64 bit only.
+ */
+
 #define PERL_HASH_NEEDS_TWO_SEEDS
 
 #ifndef U64
