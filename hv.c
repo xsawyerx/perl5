@@ -785,6 +785,9 @@ Perl_hv_common(pTHX_ HV *hv, SV *keysv, const char *key, STRLEN klen,
     }
     else                                       /* gotta do the real thing */
 	HeKEY_hek(entry) = save_hek_flags(key, klen, hash, flags);
+    if (*oentry && (U32)entry & 8) {
+        oentry= &(HeNEXT(*oentry));
+    }
     HeVAL(entry) = val;
     HeNEXT(entry) = *oentry;
     *oentry = entry;
