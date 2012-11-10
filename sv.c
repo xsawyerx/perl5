@@ -12934,10 +12934,6 @@ perl_clone_using(PerlInterpreter *proto_perl, UV flags,
 
     PL_debug		= proto_perl->Idebug;
 
-    PL_hash_seed	= proto_perl->Ihash_seed;
-    PL_hash_seed_set        = proto_perl->Ihash_seed_set;
-    assert(PL_hash_seed_set==TRUE); /* PL_hash_seed must have been set before we start a thread */
-
     /* dbargs array probably holds garbage */
     PL_dbargs		= NULL;
 
