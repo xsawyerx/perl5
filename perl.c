@@ -1492,8 +1492,13 @@ perl_parse(pTHXx_ XSINIT_t xsinit, int argc, char **argv, char **env)
     {
 	const char * const s = PerlEnv_getenv("PERL_HASH_SEED_DEBUG");
 
-	if (s && (atoi(s) == 1))
-            PerlIO_printf(Perl_debug_log, "HASH_FUNCTION = %s HASH_SEED = 0x%08x\n", PERL_HASH_FUNC, (U32)PL_hash_seed);
+        if (s && (atoi(s) == 1))
+#ifndef PERL_HASH_NEEDS_TWO_SEEDS
+            PerlIO_printf(Perl_debug_log, "HASH_FUNCTION = %s HASH_SEED = 0x%"UVxf"\n", PERL_HASH_FUNC, (UV)PL_hash_seed);
+#else
+            PerlIO_printf(Perl_debug_log, "HASH_FUNCTION = %s HASH_SEED1 = 0x%"UVxf" HASH_SEED2 = 0x%"UVxf"\n",
+                    PERL_HASH_FUNC, (UV)PL_hash_seed, (UV)PL_hash_seed2);
+#endif
     }
 #endif /* #if defined(USE_HASH_SEED) || defined(USE_HASH_SEED_EXPLICIT) */
 
