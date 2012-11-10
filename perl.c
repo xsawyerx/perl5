@@ -117,6 +117,9 @@ S_init_tls_and_interp(PerlInterpreter *my_perl)
          *
          * XXX: fix this comment */
         PL_hash_seed  = get_hash_seed("PERL_HASH_SEED");
+#if defined(PERL_HASH_NEEDS_TWO_SEEDS)
+        PL_hash_seed2 = get_hash_seed("PERL_HASH_SEED2");
+#endif
 #endif /* #if defined(USE_HASH_SEED) || defined(USE_HASH_SEED_EXPLICIT) */
     }
 #if defined(USE_ITHREADS)
@@ -1499,7 +1502,6 @@ perl_parse(pTHXx_ XSINIT_t xsinit, int argc, char **argv, char **env)
 #endif
     }
 #endif /* #if defined(USE_HASH_SEED) || defined(USE_HASH_SEED_EXPLICIT) */
-
     PL_origargc = argc;
     PL_origargv = argv;
 
