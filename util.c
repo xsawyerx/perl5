@@ -5666,8 +5666,12 @@ UV
 Perl_get_hash_seed(pTHX_ const char * const env_key)
 {
      dVAR;
-     const char *s = PerlEnv_getenv(env_key);
+     const char *s;
      UV myseed = 0;
+
+     PERL_ARGS_ASSERT_GET_HASH_SEED;
+
+     s= PerlEnv_getenv(env_key);
 
      if (s)
 	while (isSPACE(*s))
