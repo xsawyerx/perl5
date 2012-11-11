@@ -153,3 +153,77 @@ bucket_info(rhv)
     XSRETURN(0);
 }
 
+void
+bucket_array(rhv)
+        SV* rhv
+    PPCODE:
+{
+    /* Returns an array of arrays representing key/bucket mappings.
+     * Each element of the array contains either an integer or a reference
+     * to an array of keys. A plain integer represents K empty buckets. An
+     * array ref represents a single bucket, with each element being a key in
+     * the hash. (Note this treats a placeholder as a normal key.)
+     *
+     * This allows one to "see" the keyorder. Note the "insert first" nature
+     * of the hash store, combined with regular remappings means that relative
+     * order of keys changes each remap.
+     */
+    if (SvROK(rhv) && SvTYPE(SvRV(rhv))==SVt_PVHV && !SvMAGICAL(SvRV(rhv))) {
+        const HV * const hv = (const HV *) SvRV(rhv);
+        HE **he_ptr= HvARRAY(hv);
+        if (!he_ptr) {
+            XSRETURN(0);
+        } else {
+            U32 i, max;
+            AV *info_av;
+            HE *he;
+            I32 empty_count=0;
+            if (SvMAGICAL(hv)) {
+                Perl_croak(aTHX_ "hash::bucket_array only works on 'normal' hashes");
+            }
+            info_av= newAV();
+            max= HvMAX(hv);
+            mXPUSHs(newRV_noinc((SV*)info_av));
+            for ( i= 0; i <= max; i++ ) {
+                AV *key_av= NULL;
+                for (he= he_ptr[i]; he; he= HeNEXT(he) ) {
+                    SV *key_sv;
+                    if (!key_av) {
+                        key_av= newAV();
+                        if (empty_count) {
+                            av_push(info_av, newSViv(empty_count));
+                            empty_count= 0;
+                        }
+                        av_push(info_av, (SV *)newRV_noinc((SV *)key_av));
+                    }
+                    char *str;
+                    STRLEN len;
+                    char mode;
+                    if (HeKLEN(he) == HEf_SVKEY) {
+                        SV *sv= HeSVKEY(he);
+                        SvGETMAGIC(sv);
+                        str= SvPV(sv, len);
+                        mode= SvUTF8(sv) ? 1 : 0;
+                    } else {
+                        str= HeKEY(he);
+                        len= HeKLEN(he);
+                        mode= HeKUTF8(he) ? 1 : 0;
+                    }
+                    key_sv= newSVpvn(str,len);
+                    av_push(key_av,key_sv);
+                    if (mode) {
+                        SvUTF8_on(key_sv);
+                    }
+                }
+                if (!key_av)
+                    empty_count++;
+            }
+            if (empty_count) {
+                av_push(info_av, newSViv(empty_count));
+                empty_count++;
+            }
+        }
+        XSRETURN(1);
+    }
+    XSRETURN(0);
+}
