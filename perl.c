@@ -116,10 +116,7 @@ S_init_tls_and_interp(PerlInterpreter *my_perl)
          * You can also define PERL_HASH_SEED in compile time, see hv.h.
          *
          * XXX: fix this comment */
-        PL_hash_seed  = get_hash_seed("PERL_HASH_SEED");
-#if defined(PERL_HASH_NEEDS_TWO_SEEDS)
-        PL_hash_seed2 = get_hash_seed("PERL_HASH_SEED2");
-#endif
+        get_hash_seed(PL_hash_seed);
 #endif /* #if defined(USE_HASH_SEED) || defined(USE_HASH_SEED_EXPLICIT) */
     }
 #if defined(USE_ITHREADS)
@@ -1489,17 +1486,19 @@ perl_parse(pTHXx_ XSINIT_t xsinit, int argc, char **argv, char **env)
 #ifndef MULTIPLICITY
     PERL_UNUSED_ARG(my_perl);
 #endif
-#if defined(USE_HASH_SEED) || defined(USE_HASH_SEED_EXPLICIT)
+#if defined(USE_HASH_SEED) || defined(USE_HASH_SEED_EXPLICIT) || defined(USE_HASH_SEED_DEBUG)
     {
         const char * const s = PerlEnv_getenv("PERL_HASH_SEED_DEBUG");
 
-        if (s && (atoi(s) == 1))
-#ifndef PERL_HASH_NEEDS_TWO_SEEDS
-            PerlIO_printf(Perl_debug_log, "HASH_FUNCTION = %s HASH_SEED = 0x%"UVxf"\n", PERL_HASH_FUNC, (UV)PL_hash_seed);
-#else
-            PerlIO_printf(Perl_debug_log, "HASH_FUNCTION = %s HASH_SEED1 = 0x%"UVxf" HASH_SEED2 = 0x%"UVxf"\n",
-                    PERL_HASH_FUNC, (UV)PL_hash_seed, (UV)PL_hash_seed2);
-#endif
+        if (s && (atoi(s) == 1)) {
+            unsigned char *seed= PERL_HASH_SEED;
+            unsigned char *seed_end= PERL_HASH_SEED + PERL_HASH_SEED_BYTES;
+            PerlIO_printf(Perl_debug_log, "HASH_FUNCTION = %s HASH_SEED = 0x", PERL_HASH_FUNC);
+            while (seed < seed_end) {
+                PerlIO_printf(Perl_debug_log, "%02x", *seed++);
+            }
+            PerlIO_printf(Perl_debug_log, "\n");
+        }
     }
 #endif /* #if defined(USE_HASH_SEED) || defined(USE_HASH_SEED_EXPLICIT) */
     PL_origargc = argc;

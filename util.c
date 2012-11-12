@@ -5662,71 +5662,56 @@ Perl_seed(pTHX)
     return u;
 }
 
-UV
-Perl_get_hash_seed(pTHX_ const char * const env_key)
+void
+Perl_get_hash_seed(pTHX_ unsigned char *seed_buffer)
 {
-     dVAR;
-     const char *s;
-     UV myseed = 0;
+    dVAR;
+    const char *s;
+    const unsigned char * const end= seed_buffer + PERL_HASH_SEED_BYTES;
 
-     PERL_ARGS_ASSERT_GET_HASH_SEED;
+    PERL_ARGS_ASSERT_GET_HASH_SEED;
 
-     s= PerlEnv_getenv(env_key);
+    s= PerlEnv_getenv("PERL_HASH_SEED");
 
-     if (s)
-	while (isSPACE(*s))
+    if ( s )
+#ifndef USE_HASH_SEED_EXPLICIT
+    {
+        while (isSPACE(*s))
 	    s++;
-     if (s && isDIGIT(*s))
-	  myseed = (UV)Atoul(s);
-     else
-#ifdef USE_HASH_SEED_EXPLICIT
-     if (s)
+
+        while (isXDIGIT(*s) && seed_buffer < end) {
+            *seed_buffer = READ_XDIGIT(s) << 4;
+            if (isXDIGIT(*s)) {
+                *seed_buffer |= READ_XDIGIT(s);
+            }
+            seed_buffer++;
+        }
+        /* should we check for unparsed crap? */
+    }
+    else
 #endif
-     {
-
+    {
 #ifdef PERL_REENTR_API
-          /* Compute a random seed */
-         struct drand48_data buffer;
-         double value;
-         srand48_r(seed(), &buffer);
-         drand48_r(&buffer, &value);
-         myseed = (UV)(value * (NV)UV_MAX);
-#if RANDBITS < (UVSIZE * 8)
-          /* Since there are not enough randbits to to reach all
-           * the bits of a UV, the low bits might need extra
-           * help.  Sum in another random number that will
-           * fill in the low bits. */
-         drand48_r(&buffer, &value);
-         myseed +=
-               (UV)(value * (NV)((((UV)1) << ((UVSIZE * 8 - RANDBITS))) - 1));
-          if (myseed == 0) { /* Superparanoia. */
-              drand48_r(&buffer, &value);
-              myseed = (UV)(value * (NV)UV_MAX); /* One more chance. */
-              if (myseed == 0)
-                  Perl_croak(aTHX_ "Your random numbers are not that random");
-          }
-#endif /* RANDBITS < (UVSIZE * 8) */
-#else
-	  /* Compute a random seed */
-	  (void)seedDrand01((Rand_seed_t)seed());
-	  myseed = (UV)(Drand01() * (NV)UV_MAX);
+        /* Compute a random seed - under threads - we have to bypass the perl level defines of
+         * various routines here and do it outselves as we are called before
+         * the full interpreter is set up */
+        struct drand48_data drand_buffer;
+        double value;
+        srand48_r(seed(), &drand_buffer);
 
-#if RANDBITS < (UVSIZE * 8)
-	  /* Since there are not enough randbits to to reach all
-	   * the bits of a UV, the low bits might need extra
-	   * help.  Sum in another random number that will
-	   * fill in the low bits. */
-	  myseed +=
-	       (UV)(Drand01() * (NV)((((UV)1) << ((UVSIZE * 8 - RANDBITS))) - 1));
-#endif /* RANDBITS < (UVSIZE * 8) */
-	  if (myseed == 0) { /* Superparanoia. */
-	      myseed = (UV)(Drand01() * (NV)UV_MAX); /* One more chance. */
-	      if (myseed == 0)
-		  Perl_croak(aTHX_ "Your random numbers are not that random");
-	  }
+        while (seed_buffer < end) {
+            drand48_r(&drand_buffer, &value);
+            *seed_buffer++ = (unsigned char)(value * (U8_MAX+1));
+        }
+#else
+        /* Compute a random seed - as far as I can tell without threads this is fine*/
+        (void)seedDrand01((Rand_seed_t)seed());
+
+        while (seed_buffer < end) {
+            *seed_buffer++ = (unsigned char)(Drand01() * (U8_MAX+1));
+        }
 #endif
      }
-    return myseed;
 }
 
 #ifdef PERL_GLOBAL_STRUCT

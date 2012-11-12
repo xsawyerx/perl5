@@ -82,6 +82,7 @@ struct xpvhv_aux {
     AV		*xhv_backreferences; /* back references for weak references */
     HE		*xhv_eiter;	/* current entry of iterator */
     I32		xhv_riter;	/* current root of iterator */
+
 /* Concerning xhv_name_count: When non-zero, xhv_name_u contains a pointer 
  * to an array of HEK pointers, this being the length. The first element is
  * the name of the stash, which may be NULL. If xhv_name_count is positive,
@@ -115,21 +116,19 @@ struct xpvhv {
  * If USE_HASH_SEED is defined, hash randomisation is done by default
  * If USE_HASH_SEED_EXPLICIT is defined, hash randomisation is done
  * only if the environment variable PERL_HASH_SEED is set.
- * For maximal control, one can define PERL_HASH_SEED.
  * (see also perl.c:perl_parse() and S_init_tls_and_interp() and util.c:get_hash_seed())
  */
-
 #ifndef PERL_HASH_SEED
-#  if defined(USE_HASH_SEED) || defined(USE_HASH_SEED_EXPLICIT)
-#       define PERL_HASH_SEED   PL_hash_seed
-#       define PERL_HASH_SEED2  PL_hash_seed2
+#   if defined(USE_HASH_SEED) || defined(USE_HASH_SEED_EXPLICIT)
+#       define PERL_HASH_SEED PL_hash_seed
 #   else
-#       /* "PerlHack" and "hAsHfUnC" - should not be 0 really */
-#       define PERL_HASH_SEED   0x6cf4f24d51017686
-#       define PERL_HASH_SEED2  0x2ff90b26510143a4
+#       define PERL_HASH_SEED "PeRlHaShhAcKpErl"
 #   endif
 #endif
 
+#define PERL_HASH_SEED_U32   *((U32*)PERL_HASH_SEED)
+#define PERL_HASH_SEED_U64_1 (((U64*)PERL_HASH_SEED)[0])
+#define PERL_HASH_SEED_U64_2 (((U64*)PERL_HASH_SEED)[1])
 
 /* legacy - only mod_perl should be doing this.  */
 #ifdef PERL_HASH_INTERNAL_ACCESS
@@ -141,11 +140,13 @@ struct xpvhv {
 #define PERL_HASH_FUNC_DJB2
 #define PERL_HASH_FUNC_SUPERFAST
 #define PERL_HASH_FUNC_MURMUR3
-#define PERL_HASH_FUNC_SIPHASH
+#define PERL_HASH_FUNC_MURMUR3
 */
+#define PERL_HASH_FUNC_SIPHASH
 
 #if defined(PERL_HASH_FUNC_SIPHASH)
 #define PERL_HASH_FUNC "SIPHASH"
+#define PERL_HASH_SEED_BYTES 16
 
 /* This is SipHash by Jean-Philippe Aumasson and Daniel J. Bernstein.
  * The authors claim it is relatively secure compared to the alternatives
@@ -207,8 +208,8 @@ struct xpvhv {
   U64 v3_PeRlHaSh = 0x7465646279746573ULL; \
 \
   U64 b_PeRlHaSh;                           \
-  U64 k0_PeRlHaSh = PERL_HASH_SEED;         \
-  U64 k1_PeRlHaSh = PERL_HASH_SEED2;        \
+  U64 k0_PeRlHaSh = PERL_HASH_SEED_U64_1;   \
+  U64 k1_PeRlHaSh = PERL_HASH_SEED_U64_2;   \
   U64 m_PeRlHaSh;                           \
   const int left_PeRlHaSh = inlen_PeRlHaSh & 7; \
   const U8 *end_PeRlHaSh = in_PeRlHaSh + inlen_PeRlHaSh - left_PeRlHaSh; \
@@ -278,7 +279,7 @@ struct xpvhv {
         register const char * const strtmp_PeRlHaSh = (str); \
         register const unsigned char *str_PeRlHaSh = (const unsigned char *)strtmp_PeRlHaSh; \
         register U32 len_PeRlHaSh = (len); \
-        register U32 hash_PeRlHaSh = PERL_HASH_SEED ^ len; \
+        register U32 hash_PeRlHaSh = PERL_HASH_SEED_U32 ^ len; \
         register U32 tmp_PeRlHaSh; \
         register int rem_PeRlHaSh= len_PeRlHaSh & 3; \
         len_PeRlHaSh >>= 2; \
@@ -318,6 +319,7 @@ struct xpvhv {
 
 #elif defined(PERL_HASH_FUNC_MURMUR3)
 #define PERL_HASH_FUNC "MURMUR3"
+#define PERL_HASH_SEED_BYTES 4
 
 /*-----------------------------------------------------------------------------
  * MurmurHash3 was written by Austin Appleby, and is placed in the public
@@ -491,7 +493,7 @@ struct xpvhv {
         register const unsigned char *PeRlHaSh_ptr = (const unsigned char *)s_PeRlHaSh_tmp; \
         register I32 PeRlHaSh_len = len;    \
                                             \
-        U32 PeRlHaSh_h1 = PERL_HASH_SEED;   \
+        U32 PeRlHaSh_h1 = PERL_HASH_SEED_U32;   \
         U32 PeRlHaSh_k1;                    \
         U32 PeRlHaSh_carry = 0;             \
                                             \
@@ -516,7 +518,7 @@ struct xpvhv {
         register const unsigned char *PeRlHaSh_ptr = (const unsigned char *)s_PeRlHaSh_tmp; \
         register I32 PeRlHaSh_len = len;    \
                                             \
-        U32 PeRlHaSh_h1 = PERL_HASH_SEED;   \
+        U32 PeRlHaSh_h1 = PERL_HASH_SEED_U32;   \
         U32 PeRlHaSh_k1;                    \
         U32 PeRlHaSh_carry = 0;             \
                                             \
@@ -573,12 +575,13 @@ struct xpvhv {
 
 #elif defined(PERL_HASH_FUNC_DJB2)
 #define PERL_HASH_FUNC "DJB2"
+#define PERL_HASH_SEED_BYTES 4
 #define PERL_HASH(hash,str,len) \
      STMT_START        { \
         register const char * const s_PeRlHaSh_tmp = (str); \
         register const unsigned char *s_PeRlHaSh = (const unsigned char *)s_PeRlHaSh_tmp; \
         register I32 i_PeRlHaSh = len; \
-        register U32 hash_PeRlHaSh = PERL_HASH_SEED ^ len; \
+        register U32 hash_PeRlHaSh = PERL_HASH_SEED_U32 ^ len; \
         while (i_PeRlHaSh--) { \
             hash_PeRlHaSh = ((hash_PeRlHaSh << 5) + hash_PeRlHaSh) + *s_PeRlHaSh++; \
         } \
@@ -587,12 +590,13 @@ struct xpvhv {
 
 #elif defined(PERL_HASH_FUNC_SDBM)
 #define PERL_HASH_FUNC "SDBM"
+#define PERL_HASH_SEED_BYTES 4
 #define PERL_HASH(hash,str,len) \
      STMT_START        { \
         register const char * const s_PeRlHaSh_tmp = (str); \
         register const unsigned char *s_PeRlHaSh = (const unsigned char *)s_PeRlHaSh_tmp; \
         register I32 i_PeRlHaSh = len; \
-        register U32 hash_PeRlHaSh = PERL_HASH_SEED ^ len; \
+        register U32 hash_PeRlHaSh = PERL_HASH_SEED_U32 ^ len; \
         while (i_PeRlHaSh--) { \
             hash_PeRlHaSh = (hash_PeRlHaSh << 6) + (hash_PeRlHaSh << 16) - hash_PeRlHaSh + *s_PeRlHaSh++; \
         } \
@@ -603,6 +607,7 @@ struct xpvhv {
 /* DEFAULT/HISTORIC HASH FUNCTION */
 #define PERL_HASH_FUNC_ONE_AT_A_TIME
 #define PERL_HASH_FUNC "ONE_AT_A_TIME"
+#define PERL_HASH_SEED_BYTES 4
 
 /* FYI: This is the "One-at-a-Time" algorithm by Bob Jenkins
  * from requirements by Colin Plumb.
@@ -612,7 +617,7 @@ struct xpvhv {
         register const char * const s_PeRlHaSh_tmp = (str); \
         register const unsigned char *s_PeRlHaSh = (const unsigned char *)s_PeRlHaSh_tmp; \
         register I32 i_PeRlHaSh = len; \
-        register U32 hash_PeRlHaSh = PERL_HASH_SEED ^ len; \
+        register U32 hash_PeRlHaSh = PERL_HASH_SEED_U32 ^ len; \
 	while (i_PeRlHaSh--) { \
             hash_PeRlHaSh += (U8)*s_PeRlHaSh++; \
 	    hash_PeRlHaSh += (hash_PeRlHaSh << 10); \

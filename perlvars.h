@@ -232,7 +232,6 @@ PERLVAR(G, sv_placeholder, SV)
 PERLVAR(G, malloc_mutex, perl_mutex)	/* Mutex for malloc */
 #endif
 
-PERLVARI(G, hash_seed,        UV, 0x6cf4f24d51017686)        /* hash seed (will be overwritten normally) */
-PERLVARI(G, hash_seed2, UV, 0x2ff90b26510143a4) /* hash seed2 (will be overwritten normally) */
+PERLVARA(G, hash_seed, 8, unsigned char) /* or perl.h */
 
 

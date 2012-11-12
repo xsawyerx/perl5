@@ -1089,23 +1089,13 @@ XS(XS_PerlIO_get_layers)
 XS(XS_hash_seed)
 {
     dVAR;
-    /* Using dXSARGS would also have dITEM and dSP,
-     * which define 2 unused local variables.  */
-    dAXMARK;
-    PERL_UNUSED_ARG(cv);
-    PERL_UNUSED_VAR(mark);
-    XSRETURN_UV(PERL_HASH_SEED);
-}
+    dXSARGS;
 
-XS(XS_hash_function_name)
-{
-    dVAR;
-    /* Using dXSARGS would also have dITEM and dSP,
-     * which define 2 unused local variables.  */
-    dAXMARK;
     PERL_UNUSED_ARG(cv);
-    PERL_UNUSED_VAR(mark);
-    XSRETURN_PV(PERL_HASH_FUNC);
+    PERL_UNUSED_ARG(items);
+
+    mXPUSHs(newSVpvn((char *)PERL_HASH_SEED,PERL_HASH_SEED_BYTES));
+    XSRETURN(1);
 }
 
 XS(XS_hash_value)        /* Subject to change  */
@@ -1117,12 +1107,12 @@ XS(XS_hash_value)        /* Subject to change  */
     UV uv;
 
     PERL_UNUSED_ARG(cv);
+    PERL_UNUSED_ARG(items);
 
     pv= SvPV(ST(0),len);
     PERL_HASH(uv,pv,len);
     XSRETURN_UV(uv);
 }
-
 
 XS(XS_re_is_regexp)
 {
@@ -1404,7 +1394,6 @@ const struct xsub_details details[] = {
     {"PerlIO::get_layers", XS_PerlIO_get_layers, "*;@"},
 
     {"hash::seed", XS_hash_seed, ""},
-    {"hash::function_name", XS_hash_function_name, ""},
     {"hash::value", XS_hash_value, "$"},
 
     {"re::is_regexp", XS_re_is_regexp, "$"},
