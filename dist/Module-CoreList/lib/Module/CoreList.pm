@@ -68,12 +68,20 @@ sub find_version {
     return undef;
 }
 
+my $max_deprecated;
+
 sub is_deprecated {
     my $module = shift;
     $module = shift if eval { $module->isa(__PACKAGE__) }
       and scalar @_ and $_[0] =~ m#\A[a-zA-Z_][0-9a-zA-Z_]*(?:(::|')[0-9a-zA-Z_]+)*\z#;
+
+    ($max_deprecated) = sort { $b cmp $a } keys %deprecated
+      if ! defined $max_deprecated;
+
     my $perl_version = shift;
     $perl_version ||= $];
+    $perl_version = $max_deprecated if $perl_version gt $max_deprecated;
+
     return unless $module && exists $deprecated{$perl_version}{$module};
     return $deprecated{$perl_version}{$module};
 }
