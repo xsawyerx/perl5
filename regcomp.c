@@ -5641,10 +5641,13 @@ Perl_re_op_compile(pTHX_ SV ** const patternp, int pat_count,
     }
 
     /* return old regex if pattern hasn't changed */
+    /* XXX: note in the below we have to check the flags - they could differ -
+     * this check is probably pessimistic */
 
     if (   old_re
         && !recompile
 	&& !!RX_UTF8(old_re) == !!RExC_utf8
+        && (RX_EXTFLAGS(old_re) == orig_rx_flags)  /*XXX: see above */
 	&& RX_PRECOMP(old_re)
 	&& RX_PRELEN(old_re) == plen
 	&& memEQ(RX_PRECOMP(old_re), exp, plen))
