@@ -5338,6 +5338,8 @@ Perl_re_op_compile(pTHX_ SV ** const patternp, int pat_count,
 
 	SV **svp;
 
+        DEBUG_PARSE_r(PerlIO_printf(Perl_debug_log,
+            "Compiling List of SVs %d elements%s\n",pat_count, orig_rx_flags & RXf_SPLIT ? " for split" : ""));
 	/* apply magic and RE overloading to each arg */
 	for (svp = patternp; svp < patternp + pat_count; svp++) {
 	    SV *rx = *svp;
@@ -5506,6 +5508,9 @@ Perl_re_op_compile(pTHX_ SV ** const patternp, int pat_count,
 		    *is_bare_re = TRUE;
 		SvREFCNT_inc(re);
 		Safefree(pRExC_state->code_blocks);
+                DEBUG_PARSE_r(PerlIO_printf(Perl_debug_log,
+                    "Precompiled pattern%s\n", orig_rx_flags & RXf_SPLIT ? " for split" : ""));
+
 		return (REGEXP*)re;
 	    }
 	}
@@ -5517,6 +5522,9 @@ Perl_re_op_compile(pTHX_ SV ** const patternp, int pat_count,
 	    int i = -1;
 	    bool is_code = 0;
 	    OP *o;
+
+            DEBUG_PARSE_r(PerlIO_printf(Perl_debug_log,
+                "Compiling OP_LIST%s\n", orig_rx_flags & RXf_SPLIT ? " for split" : ""));
 
 	    pat = newSVpvn("", 0);
 	    SAVEFREESV(pat);
@@ -5548,6 +5556,8 @@ Perl_re_op_compile(pTHX_ SV ** const patternp, int pat_count,
 	}
 	else {
 	    assert(expr->op_type == OP_CONST);
+            DEBUG_PARSE_r(PerlIO_printf(Perl_debug_log,
+                "Compiling OP_CONST%s\n", orig_rx_flags & RXf_SPLIT ? " for split" : ""));
 	    pat = cSVOPx_sv(expr);
 	}
     }
@@ -5650,7 +5660,7 @@ Perl_re_op_compile(pTHX_ SV ** const patternp, int pat_count,
         && (RX_EXTFLAGS(old_re) == orig_rx_flags)  /*XXX: see above */
 	&& RX_PRECOMP(old_re)
 	&& RX_PRELEN(old_re) == plen
-	&& memEQ(RX_PRECOMP(old_re), exp, plen))
+        && memEQ(RX_PRECOMP(old_re), exp, plen))
     {
 	/* with runtime code, always recompile */
 	runtime_code = S_has_runtime_code(aTHX_ pRExC_state, expr, pm_flags,
@@ -6305,7 +6315,7 @@ reStudy:
     if (RExC_seen & REG_SEEN_GPOS)
 	r->extflags |= RXf_GPOS_SEEN;
     if (RExC_seen & REG_SEEN_LOOKBEHIND)
-	r->extflags |= RXf_LOOKBEHIND_SEEN;
+        r->extflags |= RXf_NO_INPLACE_SUBST; /* inplace might break the lookbehind */
     if (pRExC_state->num_code_blocks)
 	r->extflags |= RXf_EVAL_SEEN;
     if (RExC_seen & REG_SEEN_CANY)
@@ -6313,7 +6323,7 @@ reStudy:
     if (RExC_seen & REG_SEEN_VERBARG)
     {
 	r->intflags |= PREGf_VERBARG_SEEN;
-	r->extflags |= RXf_MODIFIES_VARS;
+        r->extflags |= RXf_NO_INPLACE_SUBST; /* don't understand this! Yves */
     }
     if (RExC_seen & REG_SEEN_CUTGROUP)
 	r->intflags |= PREGf_CUTGROUP_SEEN;
@@ -6330,13 +6340,15 @@ reStudy:
         regnode *next = NEXTOPER(first);
         U8 nop = OP(next);
 
-
         if (PL_regkind[fop] == NOTHING && nop == END)
             r->extflags |= RXf_NULL;
         else if (PL_regkind[fop] == BOL && nop == END)
             r->extflags |= RXf_START_ONLY;
         else if (fop == PLUS && PL_regkind[nop] == POSIXD && FLAGS(next) == _CC_SPACE && OP(regnext(first)) == END)
             r->extflags |= RXf_WHITE;
+        else if ( r->extflags & RXf_SPLIT && fop == EXACT && STR_LEN(first) == 1 && *(STRING(first)) == ' ' && OP(regnext(first)) == END )
+            r->extflags |= (RXf_SKIPWHITE|RXf_WHITE);
+
     }
 #ifdef DEBUGGING
     if (RExC_paren_names) {

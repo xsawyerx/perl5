@@ -333,7 +333,17 @@ and check for NULL.
 
 /* Leave some space, so future bit allocations can go either in the shared or
  * unshared area without affecting binary compatibility */
-#define RXf_BASE_SHIFT (_RXf_PMf_SHIFT_NEXT+1)
+#define RXf_BASE_SHIFT (_RXf_PMf_SHIFT_NEXT)
+
+/*
+  Set in Perl_pmruntime if op_flags & OPf_SPECIAL, i.e. split. Will
+  be used by regex engines to check whether they should set
+  RXf_SKIPWHITE
+*/
+#define RXf_SPLIT                (1<<(RXf_BASE_SHIFT-1))
+#if RXf_SPLIT != RXf_PMf_SPLIT
+#   error "RXf_SPLIT does not match RXf_PMf_SPLIT"
+#endif
 
 /* Manually decorate this function with gcc-style attributes just to
  * avoid having to restructure the header files and their called order,
@@ -366,19 +376,6 @@ get_regex_charset_name(const U32 flags, STRLEN* const lenp)
     }
 }
 
-/*
-  Two flags no longer used.
-  RXf_SPLIT used to be set in Perl_pmruntime if op_flags & OPf_SPECIAL,
-  i.e., split.  It was used by the regex engine to check whether it should
-  set RXf_SKIPWHITE.  Regexp plugins on CPAN also have done the same thing
-  historically, so we leave these flags defined.
-*/
-#ifndef PERL_CORE
-# define RXf_SPLIT		0
-# define RXf_SKIPWHITE		0
-#endif
-
-
 /* Anchor and GPOS related stuff */
 #define RXf_ANCH_BOL    	(1<<(RXf_BASE_SHIFT+0))
 #define RXf_ANCH_MBOL   	(1<<(RXf_BASE_SHIFT+1))
@@ -392,7 +389,7 @@ get_regex_charset_name(const U32 flags, STRLEN* const lenp)
 #define RXf_ANCH_SINGLE         (RXf_ANCH_SBOL|RXf_ANCH_GPOS)
 
 /* What we have seen */
-#define RXf_LOOKBEHIND_SEEN	(1<<(RXf_BASE_SHIFT+6))
+#define RXf_NO_INPLACE_SUBST    (1<<(RXf_BASE_SHIFT+6))
 #define RXf_EVAL_SEEN   	(1<<(RXf_BASE_SHIFT+7))
 #define RXf_CANY_SEEN   	(1<<(RXf_BASE_SHIFT+8))
 
@@ -409,8 +406,6 @@ get_regex_charset_name(const U32 flags, STRLEN* const lenp)
 #define RXf_INTUIT_TAIL 	(1<<(RXf_BASE_SHIFT+14))
 #define RXf_USE_INTUIT		(RXf_USE_INTUIT_NOML|RXf_USE_INTUIT_ML)
 
-#define RXf_MODIFIES_VARS	(1<<(RXf_BASE_SHIFT+15))
-
 /* Copy and tainted info */
 #define RXf_COPY_DONE   	(1<<(RXf_BASE_SHIFT+16))
 
@@ -422,6 +417,7 @@ get_regex_charset_name(const U32 flags, STRLEN* const lenp)
 
 /* Flags indicating special patterns */
 #define RXf_START_ONLY		(1<<(RXf_BASE_SHIFT+19)) /* Pattern is /^/ */
+#define RXf_SKIPWHITE                (1<<(RXf_BASE_SHIFT+20)) /* Pattern is for a split " " */
 #define RXf_WHITE		(1<<(RXf_BASE_SHIFT+21)) /* Pattern is /\s+/ */
 #define RXf_NULL		(1U<<(RXf_BASE_SHIFT+22)) /* Pattern is // */
 #if RXf_BASE_SHIFT+22 > 31

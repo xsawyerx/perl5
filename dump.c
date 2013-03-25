@@ -672,6 +672,8 @@ S_pm_description(pTHX_ const PMOP *pm)
             if (RX_EXTFLAGS(regex) & RXf_CHECK_ALL)
                 sv_catpv(desc, ",ALL");
         }
+        if (RX_EXTFLAGS(regex) & RXf_SKIPWHITE)
+            sv_catpv(desc, ",SKIPWHITE");
     }
 
     append_flags(desc, pmflags, pmflags_flags_names);
@@ -1449,7 +1451,7 @@ const struct flag_to_name regexp_flags_names[] = {
     {RXf_ANCH_GPOS,       "ANCH_GPOS,"},
     {RXf_GPOS_SEEN,       "GPOS_SEEN,"},
     {RXf_GPOS_FLOAT,      "GPOS_FLOAT,"},
-    {RXf_LOOKBEHIND_SEEN, "LOOKBEHIND_SEEN,"},
+    {RXf_NO_INPLACE_SUBST, "NO_INPLACE_SUBST,"},
     {RXf_EVAL_SEEN,       "EVAL_SEEN,"},
     {RXf_CANY_SEEN,       "CANY_SEEN,"},
     {RXf_NOSCAN,          "NOSCAN,"},
@@ -1458,10 +1460,12 @@ const struct flag_to_name regexp_flags_names[] = {
     {RXf_USE_INTUIT_NOML, "USE_INTUIT_NOML,"},
     {RXf_USE_INTUIT_ML,   "USE_INTUIT_ML,"},
     {RXf_INTUIT_TAIL,     "INTUIT_TAIL,"},
+    {RXf_SPLIT,           "SPLIT,"},
     {RXf_COPY_DONE,       "COPY_DONE,"},
     {RXf_TAINTED_SEEN,    "TAINTED_SEEN,"},
     {RXf_TAINTED,         "TAINTED,"},
     {RXf_START_ONLY,      "START_ONLY,"},
+    {RXf_SKIPWHITE,       "SKIPWHITE,"},
     {RXf_WHITE,           "WHITE,"},
     {RXf_NULL,            "NULL,"},
 };
