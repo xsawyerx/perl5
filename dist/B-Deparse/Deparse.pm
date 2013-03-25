@@ -20,7 +20,7 @@ use B qw(class main_root main_start main_cv svref_2object opnumber perlstring
          CVf_METHOD CVf_LVALUE
 	 PMf_KEEP PMf_GLOBAL PMf_CONTINUE PMf_EVAL PMf_ONCE
 	 PMf_MULTILINE PMf_SINGLELINE PMf_FOLD PMf_EXTENDED);
-$VERSION = '1.19';
+$VERSION = '1.20';
 use strict;
 use vars qw/$AUTOLOAD/;
 use warnings ();
@@ -4806,10 +4806,13 @@ sub pp_split {
     # Under 5.17.5+, the special flag is on split itself.
     $kid = $op->first;
     if ( $op->flags & OPf_SPECIAL
-	or
-	 $kid->flags & OPf_SPECIAL
-	 and ( $] < 5.009 ? $kid->pmflags & PMf_SKIPWHITE()
-	      : ($kid->reflags || 0) & RXf_SKIPWHITE() ) ) {
+         or (
+            $kid->flags & OPf_SPECIAL
+            and ( $] < 5.009 ? $kid->pmflags & PMf_SKIPWHITE()
+                             : ($kid->reflags || 0) & RXf_SKIPWHITE()
+            )
+         )
+    ) {
 	$exprs[0] = "' '";
     }
 
