@@ -129,8 +129,10 @@ struct reg_code_block {
 	I32 subcoffset;	/* suboffset equiv, but in chars (for @-/@+) */ \
 	/* Information about the match that isn't often used */		\
 	/* offset from wrapped to the start of precomp */		\
-        PERL_BITFIELD32 compflags:9;                                \
 	PERL_BITFIELD32 pre_prefix:4;					\
+        /* original flags used to compile the pattern, may differ */    \
+        /* from extflags in various ways */                             \
+        PERL_BITFIELD32 compflags:9;                                    \
 	CV *qr_anoncv	/* the anon sub wrapped round qr/(?{..})/ */
 
 typedef struct regexp {
