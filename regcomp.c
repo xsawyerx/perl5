@@ -5651,13 +5651,16 @@ Perl_re_op_compile(pTHX_ SV ** const patternp, int pat_count,
     }
 
     /* return old regex if pattern hasn't changed */
-    /* XXX: note in the below we have to check the flags - they could differ -
-     * this check is probably pessimistic */
+    /* XXX: note in the below we have to check the flags as well as the pattern.
+     *
+     * Things get a touch tricky as we have to compare the utf8 flag independently
+     * from the compile flags.
+     */
 
     if (   old_re
         && !recompile
-	&& !!RX_UTF8(old_re) == !!RExC_utf8
-        && ( ( RX_EXTFLAGS(old_re) & RXf_PMf_FLAGCOPYMASK ) == ( orig_rx_flags & RXf_PMf_FLAGCOPYMASK ))  /*XXX: see above */
+        && !!RX_UTF8(old_re) == !!RExC_utf8
+        && ( RX_COMPFLAGS(old_re) == ( orig_rx_flags & RXf_PMf_FLAGCOPYMASK ) )
 	&& RX_PRECOMP(old_re)
 	&& RX_PRELEN(old_re) == plen
         && memEQ(RX_PRECOMP(old_re), exp, plen))
@@ -5812,6 +5815,8 @@ Perl_re_op_compile(pTHX_ SV ** const patternp, int pat_count,
     RXi_SET( r, ri );
     r->engine= eng;
     r->extflags = rx_flags;
+    RXp_COMPFLAGS(r) = orig_rx_flags & RXf_PMf_FLAGCOPYMASK;
+
     if (pm_flags & PMf_IS_QR) {
 	ri->code_blocks = pRExC_state->code_blocks;
 	ri->num_code_blocks = pRExC_state->num_code_blocks;

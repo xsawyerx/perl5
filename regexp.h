@@ -129,6 +129,7 @@ struct reg_code_block {
 	I32 subcoffset;	/* suboffset equiv, but in chars (for @-/@+) */ \
 	/* Information about the match that isn't often used */		\
 	/* offset from wrapped to the start of precomp */		\
+        PERL_BITFIELD32 compflags:9;                                \
 	PERL_BITFIELD32 pre_prefix:4;					\
 	CV *qr_anoncv	/* the anon sub wrapped round qr/(?{..})/ */
 
@@ -464,6 +465,7 @@ get_regex_charset_name(const U32 flags, STRLEN* const lenp)
 					 : RX_MATCH_COPIED_off(prog))
 
 #define RXp_EXTFLAGS(rx)	((rx)->extflags)
+#define RXp_COMPFLAGS(rx)        ((rx)->compflags)
 
 /* For source compatibility. We used to store these explicitly.  */
 #define RX_PRECOMP(prog)	(RX_WRAPPED(prog) + ReANY(prog)->pre_prefix)
@@ -478,6 +480,7 @@ get_regex_charset_name(const U32 flags, STRLEN* const lenp)
 #define RX_CHECK_SUBSTR(prog)	(ReANY(prog)->check_substr)
 #define RX_REFCNT(prog)		SvREFCNT(prog)
 #define RX_EXTFLAGS(prog)	RXp_EXTFLAGS(ReANY(prog))
+#define RX_COMPFLAGS(prog)        RXp_COMPFLAGS(ReANY(prog))
 #define RX_ENGINE(prog)		(ReANY(prog)->engine)
 #define RX_SUBBEG(prog)		(ReANY(prog)->subbeg)
 #define RX_SUBOFFSET(prog)	(ReANY(prog)->suboffset)
