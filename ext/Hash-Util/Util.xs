@@ -91,7 +91,7 @@ hash_traversal_mask(rhv, ...)
     if (SvROK(rhv) && SvTYPE(SvRV(rhv))==SVt_PVHV && !SvMAGICAL(SvRV(rhv))) {
         const HV * const hv = (const HV *) SvRV(rhv);
         if (items>1) {
-            Perl_hv_rand_set(pTHX_ hv, SvUV(ST(1)));
+            hv_rand_set(hv, SvUV(ST(1)));
         }
         if (SvOOK(hv)) {
             XSRETURN_UV(HvRAND_get(hv));
