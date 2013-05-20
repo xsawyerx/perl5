@@ -32,10 +32,14 @@ SKIP: {
     my $cpid = fork();
     if (0 == $cpid) {
 	# the child:
-	sleep(1);
 	my $connector = IO::Socket::INET->new(PeerAddr => '127.0.0.1',
 					      PeerPort => $port,
 					      Proto => 'tcp');
+	# [perl #118059] race condition+fail in dist\IO\t\cachepropagate-tcp.t
+	# the accept in the parent was failing, perhaps becase the
+	# $connector was closed immediately, or because the listener
+	# was being closed (which isn't what we're testing here)
+	<$connector>;
 	exit(0);
     } else {;
 	    ok(defined($cpid), 'spawned a child');
@@ -52,6 +56,8 @@ SKIP: {
       skip "no Socket::SO_TYPE", 1 if !defined(eval { Socket::SO_TYPE });
       is($new->socktype(), $s, 'type match');
     }
+    # let the child finish
+    close($new);
 
     wait();
 }
