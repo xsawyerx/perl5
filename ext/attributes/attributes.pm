@@ -20,8 +20,6 @@ sub carp {
 
 my %deprecated;
 $deprecated{CODE} = qr/\A-?(locked)\z/;
-$deprecated{ARRAY} = $deprecated{HASH} = $deprecated{SCALAR}
-    = qr/\A-?(unique)\z/;
 
 sub _modify_attrs_and_deprecate {
     my $svtype = shift;
