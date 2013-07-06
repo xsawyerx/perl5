@@ -1087,12 +1087,6 @@ use File::Glob qw(:case);
         'UPSTREAM'     => 'cpan',
     },
 
-    'mad' => {
-        'MAINTAINER' => 'lwall',
-        'FILES'      => q[mad],
-        'UPSTREAM'   => undef,
-    },
-
     'Math::BigInt' => {
         'MAINTAINER'   => 'rafl',
         'DISTRIBUTION' => 'PJACKLAM/Math-BigInt-1.997.tar.gz',
@@ -1327,18 +1321,6 @@ use File::Glob qw(:case);
         # directory.
     },
 
-    'perldtrace' => {
-        'MAINTAINER' => 'sartak',
-        'FILES'      => q[pod/perldtrace.pod],
-        'UPSTREAM'   => 'blead',
-    },
-
-    'perlebcdic' => {
-        'MAINTAINER' => 'pvhp',
-        'FILES'      => q[pod/perlebcdic.pod],
-        'UPSTREAM'   => undef,
-    },
-
     'PerlIO' => {
         'MAINTAINER' => 'p5p',
         'FILES'      => q[lib/PerlIO.pm],
@@ -1382,43 +1364,6 @@ use File::Glob qw(:case);
         'FILES'        => q[cpan/Perl-OSType],
         'EXCLUDED'     => [qr/^xt/, qr{^t/00-}],
         'UPSTREAM'     => 'cpan',
-    },
-
-    'perlpacktut' => {
-        'MAINTAINER' => 'laun',
-        'FILES'      => q[pod/perlpacktut.pod],
-        'UPSTREAM'   => undef,
-    },
-
-    'perlpodspec' => {
-        'MAINTAINER' => 'sburke',
-        'FILES'      => q[pod/perlpodspec.pod],
-        'UPSTREAM'   => undef,
-    },
-
-    'perlre' => {
-        'MAINTAINER' => 'abigail',
-        'FILES'      => q[pod/perlrecharclass.pod
-                 pod/perlrebackslash.pod],
-        'UPSTREAM' => undef,
-    },
-
-    'perlreapi' => {
-        MAINTAINER => 'avar',
-        FILES      => q[pod/perlreapi.pod],
-        'UPSTREAM' => undef,
-    },
-
-    'perlreftut' => {
-        'MAINTAINER' => 'mjd',
-        'FILES'      => q[pod/perlreftut.pod],
-        'UPSTREAM'   => 'blead',
-    },
-
-    'perlthrtut' => {
-        'MAINTAINER' => 'elizabeth',
-        'FILES'      => q[pod/perlthrtut.pod],
-        'UPSTREAM'   => undef,
     },
 
     'Pod::Checker' => {
@@ -1930,12 +1875,6 @@ use File::Glob qw(:case);
             't/'             => 'lib/version/t/'
         },
         'UPSTREAM' => undef,
-    },
-
-    'vms' => {
-        'MAINTAINER' => 'craig',
-        'FILES'      => q[vms configure.com README.vms],
-        'UPSTREAM'   => undef,
     },
 
     'VMS::DCLsym' => {
