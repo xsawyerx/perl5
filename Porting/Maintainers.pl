@@ -1880,19 +1880,19 @@ use File::Glob qw(:case);
     'VMS::DCLsym' => {
         'MAINTAINER' => 'craig',
         'FILES'      => q[ext/VMS-DCLsym],
-        'UPSTREAM'   => undef,
+        'UPSTREAM'   => 'blead',
     },
 
     'VMS::Filespec' => {
         'MAINTAINER' => 'p5p',
         'FILES'      => q[ext/VMS-Filespec],
-        'UPSTREAM'   => undef,
+        'UPSTREAM'   => 'blead',
     },
 
     'VMS::Stdio' => {
         'MAINTAINER' => 'craig',
         'FILES'      => q[ext/VMS-Stdio],
-        'UPSTREAM'   => undef,
+        'UPSTREAM'   => 'blead',
     },
 
     'warnings' => {
