@@ -672,7 +672,7 @@ use File::Glob qw(:case);
                 examples/perl_regcomp_posix_keyword.pl
                 ),
         ],
-        'UPSTREAM' => undef,
+        'UPSTREAM' => 'cpan',
     },
 
     'ExtUtils::Install' => {
@@ -789,7 +789,7 @@ use File::Glob qw(:case);
             ''   => 'cpan/File-Path/lib/File/',
             't/' => 'cpan/File-Path/t/',
         },
-        'UPSTREAM' => undef,
+        'UPSTREAM' => 'cpan',
     },
 
     'File::stat' => {
@@ -986,7 +986,7 @@ use File::Glob qw(:case);
         'MAINTAINER'   => 'tomhughes',
         'DISTRIBUTION' => 'TOMHUGHES/IO-Zlib-1.10.tar.gz',
         'FILES'        => q[cpan/IO-Zlib],
-        'UPSTREAM'     => undef,
+        'UPSTREAM'     => 'cpan',
     },
 
     'IPC::Cmd' => {
@@ -1047,7 +1047,7 @@ use File::Glob qw(:case);
                 ),
         ],
         'CUSTOMIZED' => ['Makefile.PL'],
-        'UPSTREAM'   => undef,
+        'UPSTREAM'   => 'cpan',
     },
 
     'Locale-Codes' => {
@@ -1298,7 +1298,7 @@ use File::Glob qw(:case);
         'MAINTAINER'   => 'corion',
         'DISTRIBUTION' => 'CORION/parent-0.225.tar.gz',
         'FILES'        => q[cpan/parent],
-        'UPSTREAM'     => undef,
+        'UPSTREAM'     => 'cpan',
     },
 
     'Parse::CPAN::Meta' => {
@@ -1355,7 +1355,7 @@ use File::Glob qw(:case);
         'MAINTAINER'   => 'elizabeth',
         'DISTRIBUTION' => 'ELIZABETH/PerlIO-via-QuotedPrint-0.07.tar.gz',
         'FILES'        => q[cpan/PerlIO-via-QuotedPrint],
-        'UPSTREAM'     => undef,
+        'UPSTREAM'     => 'cpan',
     },
 
     'Perl::OSType' => {
@@ -1377,7 +1377,7 @@ use File::Glob qw(:case);
         'MAINTAINER'   => 'arandal',
         'DISTRIBUTION' => 'SBURKE/Pod-Escapes-1.04.tar.gz',
         'FILES'        => q[cpan/Pod-Escapes],
-        'UPSTREAM'     => undef,
+        'UPSTREAM'     => 'cpan',
     },
 
     'Pod::Functions' => {
@@ -1576,7 +1576,7 @@ use File::Glob qw(:case);
         'MAINTAINER'   => 'jstowe',
         'DISTRIBUTION' => 'JSTOWE/Term-Cap-1.12.tar.gz',
         'FILES'        => q[cpan/Term-Cap],
-        'UPSTREAM'     => undef,
+        'UPSTREAM'     => 'cpan',
     },
 
     'Term::Complete' => {
@@ -1686,7 +1686,7 @@ use File::Glob qw(:case);
             'ParseWords.pm' => 'cpan/Text-ParseWords/lib/Text/ParseWords.pm',
             ''              => 'cpan/Text-ParseWords/',
         },
-        'UPSTREAM' => undef,
+        'UPSTREAM' => 'cpan',
     },
 
     'Text-Tabs+Wrap' => {
@@ -1937,18 +1937,8 @@ use File::Glob qw(:case);
 
     'XSLoader' => {
         'MAINTAINER'   => 'saper',
-        'DISTRIBUTION' => 'SAPER/XSLoader-0.16.tar.gz',
         'FILES'        => q[dist/XSLoader],
-        'EXCLUDED'     => [
-            qr{^eg/},
-            qw( t/pod.t
-                t/podcover.t
-                t/portfs.t
-                ),
-            'XSLoader.pm',    # we use XSLoader_pm.PL
-        ],
-        # Revert UPSTREAM to 'blead' after 0.17 is released
-        'UPSTREAM' => undef,
+        'UPSTREAM'     => 'blead',
     },
 
     's2p' => {
