@@ -1453,7 +1453,7 @@ use File::Glob qw(:case);
 
     'Pod::Checker' => {
         'MAINTAINER' => 'marekr',
-        'DISTRIBUTION' => 'MAREKR/Pod-Checker-1.60.tar.gz',
+        'DISTRIBUTION' => 'MAREKR/Pod-Checker-1.70.tar.gz',
         'FILES'        => q[cpan/Pod-Checker],
         'UPSTREAM'     => 'cpan',
     },
