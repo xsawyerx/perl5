@@ -4470,10 +4470,10 @@ of values, as follows:
        acter mode and UTF-8 (or UTF-EBCDIC in EBCDIC platforms) in
        byte mode.
 
-    w  A BER compressed integer (not an ASN.1 BER, see perlpacktut
-       for details).  Its bytes represent an unsigned integer in
-       base 128, most significant digit first, with as few digits
-       as possible.  Bit eight (the high bit) is set on each byte
+    w  A BER compressed integer (like an ASN.1 BER subidentifier, see
+       perlpacktut for details).  Its bytes represent an unsigned
+       integer in base 128, most significant digit first, with as few
+       digits as possible.  Bit eight (the high bit) is set on each byte
        except the last.
 
     x  A null byte (a.k.a ASCII NUL, "\000", chr(0))

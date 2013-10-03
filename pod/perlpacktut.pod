@@ -671,12 +671,11 @@ sequences and generally have a friendlier interface.
 =head2 Another Portable Binary Encoding
 
 The pack code C<w> has been added to support a portable binary data
-encoding scheme that goes way beyond simple integers. (Details can
-be found at L<http://Casbah.org/>, the Scarab project.)  A BER (Binary Encoded
-Representation) compressed unsigned integer stores base 128
+encoding scheme that goes way beyond simple integers.  A BER (Binary
+Encoded Representation) compressed unsigned integer stores base 128
 digits, most significant digit first, with as few digits as possible.
 Bit eight (the high bit) is set on each byte except the last. There
-is no size limit to BER encoding, but Perl won't go to extremes.
+is no size limit to BER encoding.
 
    my $berbuf = pack( 'w*', 1, 128, 128+1, 128*128+127 );
 
@@ -684,6 +683,9 @@ A hex dump of C<$berbuf>, with spaces inserted at the right places,
 shows 01 8100 8101 81807F. Since the last byte is always less than
 128, C<unpack> knows where to stop.
 
+Although perl will use multiprecision arithmetic when decoding these
+values, the result is a string of digits.  Using it as a number in
+operations in Perl space may well lead to a loss of precision.
 
 =head1 Template Grouping
 
