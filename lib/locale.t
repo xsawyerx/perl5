@@ -1991,6 +1991,7 @@ foreach ($first_locales_test_number..$final_locales_test_number) {
         if ($Okay{$_} && ($_ >= $first_casing_test_number
                           && $_ <= $final_casing_test_number))
         {
+            no warnings 'experimental::aggref';
             # Round to nearest .1%
             my $percent_fail = (int(.5 + (1000 * scalar(keys $Problem{$_})
                                           / scalar(@Locale))))
