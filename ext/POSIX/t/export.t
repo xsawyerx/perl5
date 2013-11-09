@@ -65,7 +65,8 @@ my %expect = (
 		  TZNAME_MAX UCHAR_MAX UINT_MAX ULONG_MAX USHRT_MAX VEOF VEOL
 		  VERASE VINTR VKILL VMIN VQUIT VSTART VSTOP VSUSP VTIME
 		  WEXITSTATUS WIFEXITED WIFSIGNALED WIFSTOPPED WNOHANG WSTOPSIG
-		  WTERMSIG WUNTRACED W_OK X_OK _PC_CHOWN_RESTRICTED
+		  WTERMSIG WUNTRACED W_OK X_OK
+		  ULLONG_MAX LLONG_MAX LLONG_MIN _PC_CHOWN_RESTRICTED
 		  _PC_LINK_MAX _PC_MAX_CANON _PC_MAX_INPUT _PC_NAME_MAX
 		  _PC_NO_TRUNC _PC_PATH_MAX _PC_PIPE_BUF _PC_VDISABLE
 		  _POSIX_ARG_MAX _POSIX_CHILD_MAX _POSIX_CHOWN_RESTRICTED
@@ -115,5 +116,5 @@ while (my ($var, $expect) = each %expect) {
     my $have = *{$POSIX::{$var}}{ARRAY};
     cmp_ok(@$have, '==', @$expect,
 	   "Correct number of entries for \@POSIX::$var");
-    is_deeply([sort @$have], $expect, "Correct entries for \@POSIX::$var");
+    is_deeply([sort @$have], [sort @$expect], "Correct entries for \@POSIX::$var");
 }
