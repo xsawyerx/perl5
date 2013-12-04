@@ -4089,6 +4089,7 @@ Perl_sv_buf_to_rw(pTHX_ SV *sv)
 {
     char * const buf = SvPVX(sv)-sizeof(char *);
     const STRLEN len = SvLEN(sv)+sizeof(char *);
+    PERL_ARGS_ASSERT_SV_BUF_TO_RW;
     if (mprotect(buf, len, PROT_READ|PROT_WRITE))
 	Perl_warn(aTHX_ "mprotect for COW string %p %lu failed with %d",
 			 buf, len, errno);
