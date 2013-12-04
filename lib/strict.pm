@@ -2,6 +2,8 @@ package strict;
 
 $strict::VERSION = "1.08";
 
+BEGIN { study } __FILE__;
+
 # Verify that we're called correctly so that strictures will work.
 unless ( __FILE__ =~ /(^|[\/\\])\Q${\__PACKAGE__}\E\.pmc?$/ ) {
     # Can't use Carp, since Carp uses us!
