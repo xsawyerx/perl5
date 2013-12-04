@@ -1362,6 +1362,11 @@
 #define strip_return(a)		S_strip_return(aTHX_ a)
 #    endif
 #  endif
+#  if defined(PERL_DEBUG_READONLY_COW)
+#define sv_buf_to_mmap(a)	Perl_sv_buf_to_mmap(aTHX_ a)
+#define sv_buf_to_ro(a)		Perl_sv_buf_to_ro(aTHX_ a)
+#define sv_buf_to_rw(a)		Perl_sv_buf_to_rw(aTHX_ a)
+#  endif
 #  if defined(PERL_IN_AV_C)
 #define get_aux_mg(a)		S_get_aux_mg(aTHX_ a)
 #  endif

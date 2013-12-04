@@ -4045,6 +4045,66 @@ S_glob_assign_ref(pTHX_ SV *const dstr, SV *const sstr)
 # define GE_COWBUF_THRESHOLD(len)	1
 #endif
 
+#ifdef PERL_DEBUG_READONLY_COW
+# include <sys/mman.h>
+
+void
+Perl_sv_buf_to_mmap(pTHX_ SV *sv)
+{
+    char * const newbuff = (char *)mmap(0,SvLEN(sv),PROT_READ|PROT_WRITE,
+					MAP_ANON|MAP_PRIVATE, -1, 0);
+    PERL_ARGS_ASSERT_SV_BUF_TO_MMAP;
+    DEBUG_m(PerlIO_printf(Perl_debug_log, "mapped %lu at %p for COW\n",
+					   SvLEN(sv), newbuff));
+    if (newbuff == MAP_FAILED) {
+	perror("mmap failed");
+	abort();
+    }
+    Copy(SvPVX(sv),newbuff,SvCUR(sv)+2,char);
+    Safefree(SvPVX(sv));
+    SvPV_set(sv, newbuff);
+}
+
+void
+Perl_sv_buf_to_ro(pTHX_ SV *sv)
+{
+    PERL_ARGS_ASSERT_SV_BUF_TO_RO;
+    if (mprotect(SvPVX(sv), SvLEN(sv), PROT_READ))
+	Perl_warn(aTHX_ "mprotect RW for COW string %p %lu failed with %d",
+			 SvPVX(sv), SvLEN(sv), errno);
+}
+
+void
+Perl_sv_buf_to_rw(pTHX_ SV *sv)
+{
+    if (mprotect(SvPVX(sv), SvLEN(sv), PROT_READ|PROT_WRITE))
+	Perl_warn(aTHX_ "mprotect for COW string %p %lu failed with %d",
+			 SvPVX(sv), SvLEN(sv), errno);
+}
+
+void
+S_sv_buf_munmap(pTHX_ SV *sv)
+{
+    char * const oldbuf = SvPVX(sv);
+    char *newbuf;
+    Newx(newbuf,SvLEN(sv),char);
+    Copy(oldbuf,newbuf,SvLEN(sv),char);
+    SvPV_set(sv,newbuf);
+    DEBUG_m(PerlIO_printf(Perl_debug_log, "Deallocate COW string at %p\n",
+					   oldbuf));
+    if (munmap(oldbuf, SvLEN(sv))) {
+	perror("munmap failed");
+	abort();
+    }
+}
+
+#else
+# define sv_buf_to_mmap(sv)	NOOP
+# define sv_buf_to_ro(sv)	NOOP
+# define sv_buf_to_rw(sv)	NOOP
+# define S_sv_buf_munmap(sv)	NOOP
+#endif
+
 void
 Perl_sv_setsv_flags(pTHX_ SV *dstr, SV* sstr, const I32 flags)
 {
@@ -4424,6 +4484,7 @@ Perl_sv_setsv_flags(pTHX_ SV *dstr, SV* sstr, const I32 flags)
             }
 #ifdef PERL_ANY_COW
             if (!(sflags & SVf_IsCOW)) {
+                    sv_buf_to_mmap(sstr);
                     SvIsCOW_on(sstr);
 # ifdef PERL_OLD_COPY_ON_WRITE
                     /* Make the source SV into a loop of 1.
@@ -4447,9 +4508,13 @@ Perl_sv_setsv_flags(pTHX_ SV *dstr, SV* sstr, const I32 flags)
                     SV_COW_NEXT_SV_SET(dstr, SV_COW_NEXT_SV(sstr));
                     SV_COW_NEXT_SV_SET(sstr, dstr);
 # else
+		    if (sflags & SVf_IsCOW) {
+			sv_buf_to_rw(sstr);
+		    }
 		    CowREFCNT(sstr)++;
 # endif
                     SvPV_set(dstr, SvPVX_mutable(sstr));
+                    sv_buf_to_ro(sstr);
             } else
 #endif
             {
@@ -4543,6 +4608,9 @@ Perl_sv_setsv_cow(pTHX_ SV *dstr, SV *sstr)
     STRLEN cur = SvCUR(sstr);
     STRLEN len = SvLEN(sstr);
     char *new_pv;
+#ifdef PERL_DEBUG_READONLY_COW
+    const bool already = cBOOL(SvIsCOW(sstr));
+#endif
 
     PERL_ARGS_ASSERT_SV_SETSV_COW;
 
@@ -4594,6 +4662,7 @@ Perl_sv_setsv_cow(pTHX_ SV *dstr, SV *sstr)
 	SvIsCOW_on(sstr);
 	DEBUG_C(PerlIO_printf(Perl_debug_log,
 			      "Fast copy on write: Converting sstr to COW\n"));
+	sv_buf_to_mmap(sstr);
 # ifdef PERL_OLD_COPY_ON_WRITE
 	SV_COW_NEXT_SV_SET(dstr, sstr);
 # else
@@ -4603,9 +4672,13 @@ Perl_sv_setsv_cow(pTHX_ SV *dstr, SV *sstr)
 # ifdef PERL_OLD_COPY_ON_WRITE
     SV_COW_NEXT_SV_SET(sstr, dstr);
 # else
+#  ifdef PERL_DEBUG_READONLY_COW
+    if (already) sv_buf_to_rw(sstr);
+#  endif
     CowREFCNT(sstr)++;	
 # endif
     new_pv = SvPVX_mutable(sstr);
+    sv_buf_to_ro(sstr);
 
   common_exit:
     SvPV_set(dstr, new_pv);
@@ -4880,6 +4953,7 @@ S_sv_release_COW(pTHX_ SV *sv, const char *pvx, SV *after)
                in the loop.)
                Hence other SV is no longer copy on write either.  */
             SvIsCOW_off(after);
+            S_sv_buf_munmap(after);
         } else {
             /* We need to follow the pointers around the loop.  */
             SV *next;
@@ -4944,7 +5018,7 @@ S_sv_uncow(pTHX_ SV * const sv, const U32 flags)
 # ifdef PERL_NEW_COPY_ON_WRITE
 	if (len && CowREFCNT(sv) == 0)
 	    /* We own the buffer ourselves. */
-	    NOOP;
+	    S_sv_buf_munmap(sv);
 	else
 # endif
 	{
@@ -4952,7 +5026,11 @@ S_sv_uncow(pTHX_ SV * const sv, const U32 flags)
             /* This SV doesn't own the buffer, so need to Newx() a new one:  */
 # ifdef PERL_NEW_COPY_ON_WRITE
 	    /* Must do this first, since the macro uses SvPVX. */
-	    if (len) CowREFCNT(sv)--;
+	    if (len) {
+		sv_buf_to_rw(sv);
+		CowREFCNT(sv)--;
+		sv_buf_to_ro(sv);
+	    }
 # endif
             SvPV_set(sv, NULL);
             SvLEN_set(sv, 0);
@@ -6433,7 +6511,22 @@ Perl_sv_clear(pTHX_ SV *const orig_sv)
 			sv_release_COW(sv, SvPVX_const(sv), SV_COW_NEXT_SV(sv));
 # else
 			if (CowREFCNT(sv)) {
+			    sv_buf_to_rw(sv);
 			    CowREFCNT(sv)--;
+			    sv_buf_to_ro(sv);
+			    SvLEN_set(sv, 0);
+			}
+# endif
+# ifdef PERL_DEBUG_READONLY_COW
+			if (SvLEN(sv)) {
+			    DEBUG_m(PerlIO_printf(
+				Perl_debug_log,
+				"Deallocate COW string at %p\n", SvPVX(sv)
+			    ));
+			    if (munmap(SvPVX(sv), SvLEN(sv))) {
+				perror("munmap failed");
+				abort();
+			    }
 			    SvLEN_set(sv, 0);
 			}
 # endif
