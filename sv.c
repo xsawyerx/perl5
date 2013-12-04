@@ -4048,51 +4048,62 @@ S_glob_assign_ref(pTHX_ SV *const dstr, SV *const sstr)
 #ifdef PERL_DEBUG_READONLY_COW
 # include <sys/mman.h>
 
+/* Reallocate the string using mmap(), so we can make it read-only.  Some
+   code, like pp_require, expects to be able to record the value of SvPVX,
+   copy the SV, and then use the recorded value.  If we free SvPVX, it
+   could be reused, and such assumptions would break.  So we keep the old
+   string, storing a pointer to it at the beginning of the mmap string. */
+
 void
 Perl_sv_buf_to_mmap(pTHX_ SV *sv)
 {
-    char * const newbuff = (char *)mmap(0,SvLEN(sv),PROT_READ|PROT_WRITE,
-					MAP_ANON|MAP_PRIVATE, -1, 0);
+    const STRLEN len = SvLEN(sv)+sizeof(char *);
+    char *newbuff = (char *)mmap(0,len,PROT_READ|PROT_WRITE,
+				 MAP_ANON|MAP_PRIVATE, -1, 0);
     PERL_ARGS_ASSERT_SV_BUF_TO_MMAP;
     DEBUG_m(PerlIO_printf(Perl_debug_log, "mapped %lu at %p for COW\n",
-					   SvLEN(sv), newbuff));
+					   len, newbuff));
     if (newbuff == MAP_FAILED) {
 	perror("mmap failed");
 	abort();
     }
-    Copy(SvPVX(sv),newbuff,SvCUR(sv)+2,char);
-    Safefree(SvPVX(sv));
+    *(char **)newbuff = SvPVX(sv);
+    newbuff += sizeof(char *);
+    Copy(SvPVX(sv),newbuff,SvCUR(sv)+1,char);
     SvPV_set(sv, newbuff);
 }
 
 void
 Perl_sv_buf_to_ro(pTHX_ SV *sv)
 {
+    char * const buf = SvPVX(sv)-sizeof(char *);
+    const STRLEN len = SvLEN(sv)+sizeof(char *);
     PERL_ARGS_ASSERT_SV_BUF_TO_RO;
-    if (mprotect(SvPVX(sv), SvLEN(sv), PROT_READ))
+    if (mprotect(buf, len, PROT_READ))
 	Perl_warn(aTHX_ "mprotect RW for COW string %p %lu failed with %d",
-			 SvPVX(sv), SvLEN(sv), errno);
+			 buf, len, errno);
 }
 
 void
 Perl_sv_buf_to_rw(pTHX_ SV *sv)
 {
-    if (mprotect(SvPVX(sv), SvLEN(sv), PROT_READ|PROT_WRITE))
+    char * const buf = SvPVX(sv)-sizeof(char *);
+    const STRLEN len = SvLEN(sv)+sizeof(char *);
+    if (mprotect(buf, len, PROT_READ|PROT_WRITE))
 	Perl_warn(aTHX_ "mprotect for COW string %p %lu failed with %d",
-			 SvPVX(sv), SvLEN(sv), errno);
+			 buf, len, errno);
 }
 
 void
 S_sv_buf_munmap(pTHX_ SV *sv)
 {
-    char * const oldbuf = SvPVX(sv);
-    char *newbuf;
-    Newx(newbuf,SvLEN(sv),char);
-    Copy(oldbuf,newbuf,SvLEN(sv),char);
-    SvPV_set(sv,newbuf);
+    char * const mbuf = SvPVX(sv) - sizeof(char *);
+    char * const origbuf = *(char**)mbuf;
+    Copy(SvPVX(sv),origbuf,SvLEN(sv),char);
+    SvPV_set(sv,origbuf);
     DEBUG_m(PerlIO_printf(Perl_debug_log, "Deallocate COW string at %p\n",
-					   oldbuf));
-    if (munmap(oldbuf, SvLEN(sv))) {
+					   mbuf));
+    if (munmap(mbuf, SvLEN(sv))) {
 	perror("munmap failed");
 	abort();
     }
@@ -6519,11 +6530,13 @@ Perl_sv_clear(pTHX_ SV *const orig_sv)
 # endif
 # ifdef PERL_DEBUG_READONLY_COW
 			if (SvLEN(sv)) {
+			    char * const buf = SvPVX(sv)-sizeof(char *);
+			    Safefree(*(char **)buf);
 			    DEBUG_m(PerlIO_printf(
 				Perl_debug_log,
-				"Deallocate COW string at %p\n", SvPVX(sv)
+				"Deallocate COW string at %p\n", buf
 			    ));
-			    if (munmap(SvPVX(sv), SvLEN(sv))) {
+			    if (munmap(buf, SvLEN(sv)+sizeof(char *))) {
 				perror("munmap failed");
 				abort();
 			    }
