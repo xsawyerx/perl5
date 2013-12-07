@@ -1316,7 +1316,6 @@ sd	|void	|sv_add_arena	|NN char *const ptr|const U32 size \
 Apd	|int	|sv_backoff	|NN SV *const sv
 Apd	|SV*	|sv_bless	|NN SV *const sv|NN HV *const stash
 #if defined(PERL_DEBUG_READONLY_COW)
-p	|void	|sv_buf_to_mmap	|NN SV *sv
 p	|void	|sv_buf_to_ro	|NN SV *sv
 p	|void	|sv_buf_to_rw	|NN SV *sv
 #endif

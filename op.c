@@ -10829,9 +10829,6 @@ Perl_ck_svconst(pTHX_ OP *o)
        that constant, mark the constant as COWable here, if it is not
        already read-only. */
     if (!SvREADONLY(sv) && !SvIsCOW(sv) && SvCANCOW(sv)) {
-# ifdef PERL_DEBUG_READONLY_COW
-	sv_buf_to_mmap(sv);
-# endif
 	SvIsCOW_on(sv);
 	CowREFCNT(sv) = 0;
 # ifdef PERL_DEBUG_READONLY_COW
