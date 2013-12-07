@@ -1363,7 +1363,6 @@
 #    endif
 #  endif
 #  if defined(PERL_DEBUG_READONLY_COW)
-#define sv_buf_to_mmap(a)	Perl_sv_buf_to_mmap(aTHX_ a)
 #define sv_buf_to_ro(a)		Perl_sv_buf_to_ro(aTHX_ a)
 #define sv_buf_to_rw(a)		Perl_sv_buf_to_rw(aTHX_ a)
 #  endif
