@@ -4917,6 +4917,7 @@ S_sv_release_COW(pTHX_ SV *sv, const char *pvx, SV *after)
                in the loop.)
                Hence other SV is no longer copy on write either.  */
             SvIsCOW_off(after);
+            sv_buf_to_rw(after);
         } else {
             /* We need to follow the pointers around the loop.  */
             SV *next;
@@ -4981,7 +4982,7 @@ S_sv_uncow(pTHX_ SV * const sv, const U32 flags)
 # ifdef PERL_NEW_COPY_ON_WRITE
 	if (len && CowREFCNT(sv) == 0)
 	    /* We own the buffer ourselves. */
-	    NOOP;
+	    sv_buf_to_rw(sv);
 	else
 # endif
 	{

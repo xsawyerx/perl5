@@ -1742,33 +1742,9 @@ void Perl_mem_log_del_sv(const SV *sv, const char *filename, const int linenumbe
 #define MEM_LOG_FREE(a)          (a)
 #endif
 
-#ifdef PERL_DEBUG_READONLY_COW
-# include <sys/mman.h>
-# define MMAP_FOLLOWUP(v,sz) \
-	(void)((v) == MAP_FAILED && (perror("mmap failed"), abort(), 0)), \
-	*(IV *)(v) = (sz), *(char **)&(v) += sizeof(IV)
-# define Newx(v,n,t) \
-	(v = (MEM_WRAP_CHECK_(n,t)					 \
-	      (t*)MEM_LOG_ALLOC(					 \
-		    n,t,mmap(0, (MEM_SIZE)((n)*sizeof(t))+sizeof(IV),	 \
-			     PROT_READ|PROT_WRITE, MAP_ANON|MAP_PRIVATE, \
-			    -1, 0)					 \
-	      )),					 		 \
-	 MMAP_FOLLOWUP(v,(n)*sizeof(t)))
-# define Newxc(v,n,t,c) \
-	(v = (MEM_WRAP_CHECK_(n,t)					 \
-	      (c*)MEM_LOG_ALLOC(					 \
-		    n,t,mmap(0, (MEM_SIZE)((n)*sizeof(t))+sizeof(IV),	 \
-			     PROT_READ|PROT_WRITE, MAP_ANON|MAP_PRIVATE, \
-			    -1, 0)					 \
-	      )),					 		 \
-	 MMAP_FOLLOWUP(v,(n)*sizeof(t)))
-# define Newxz(v,n,t)	Newx(v,n,t)
-#else
-# define Newx(v,n,t)	(v = (MEM_WRAP_CHECK_(n,t) (t*)MEM_LOG_ALLOC(n,t,safemalloc((MEM_SIZE)((n)*sizeof(t))))))
-# define Newxc(v,n,t,c)	(v = (MEM_WRAP_CHECK_(n,t) (c*)MEM_LOG_ALLOC(n,t,safemalloc((MEM_SIZE)((n)*sizeof(t))))))
-# define Newxz(v,n,t)	(v = (MEM_WRAP_CHECK_(n,t) (t*)MEM_LOG_ALLOC(n,t,safecalloc((n),sizeof(t)))))
-#endif
+#define Newx(v,n,t)	(v = (MEM_WRAP_CHECK_(n,t) (t*)MEM_LOG_ALLOC(n,t,safemalloc((MEM_SIZE)((n)*sizeof(t))))))
+#define Newxc(v,n,t,c)	(v = (MEM_WRAP_CHECK_(n,t) (c*)MEM_LOG_ALLOC(n,t,safemalloc((MEM_SIZE)((n)*sizeof(t))))))
+#define Newxz(v,n,t)	(v = (MEM_WRAP_CHECK_(n,t) (t*)MEM_LOG_ALLOC(n,t,safecalloc((n),sizeof(t)))))
 
 #ifndef PERL_CORE
 /* pre 5.9.x compatibility */
@@ -1777,30 +1753,14 @@ void Perl_mem_log_del_sv(const SV *sv, const char *filename, const int linenumbe
 #define Newz(x,v,n,t)	Newxz(v,n,t)
 #endif
 
-#ifdef PERL_DEBUG_READONLY_COW
-# define Renew(v,n,t) \
-	((v) = (MEM_WRAP_CHECK_(n,t)	\
-	    (t *)S_Renew(aTHX_ (Malloc_t)(v),(MEM_SIZE)((n)*sizeof(t)))))
-# define Renewc(v,n,t,c) \
-	((v) = (MEM_WRAP_CHECK_(n,t)	\
-	    (c *)S_Renew(aTHX_ (Malloc_t)(v),(MEM_SIZE)((n)*sizeof(t)))))
-#else
-# define Renew(v,n,t) \
+#define Renew(v,n,t) \
 	  (v = (MEM_WRAP_CHECK_(n,t) (t*)MEM_LOG_REALLOC(n,t,v,saferealloc((Malloc_t)(v),(MEM_SIZE)((n)*sizeof(t))))))
-# define Renewc(v,n,t,c) \
+#define Renewc(v,n,t,c) \
 	  (v = (MEM_WRAP_CHECK_(n,t) (c*)MEM_LOG_REALLOC(n,t,v,saferealloc((Malloc_t)(v),(MEM_SIZE)((n)*sizeof(t))))))
-#endif
 
 #ifdef PERL_POISON
 #define Safefree(d) \
   ((d) ? (void)(safefree(MEM_LOG_FREE((Malloc_t)(d))), Poison(&(d), 1, Malloc_t)) : (void) 0)
-#elif defined (PERL_DEBUG_READONLY_COW)
-#define Safefree(d) \
-	(void)(							\
-	    (d)							\
-	 && munmap(MEM_LOG_FREE((Malloc_t)(d))-sizeof(IV),	\
-		   *(IV *)((d)-sizeof(IV))+sizeof(IV))		\
-	 && (perror("munmap failed"), abort(), 0))
 #else
 #define Safefree(d)	safefree(MEM_LOG_FREE((Malloc_t)(d)))
 #endif
