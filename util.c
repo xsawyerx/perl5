@@ -51,6 +51,10 @@ int putenv(char *);
 # endif
 #endif
 
+#ifdef PERL_DEBUG_READONLY_COW
+# include <sys/mman.h>
+#endif
+
 #define FLUSH
 
 #if defined(HAS_FCNTL) && defined(F_SETFD) && !defined(FD_CLOEXEC)
@@ -83,7 +87,16 @@ Perl_safesysmalloc(MEM_SIZE size)
     if ((SSize_t)size < 0)
 	Perl_croak_nocontext("panic: malloc, size=%"UVuf, (UV) size);
 #endif
-    ptr = (Malloc_t)PerlMem_malloc(size?size:1);	/* malloc(0) is NASTY on our system */
+    if (!size) size = 1;	/* malloc(0) is NASTY on our system */
+#ifdef PERL_DEBUG_READONLY_COW
+    if ((ptr = mmap(0, size+sizeof(IV), PROT_READ|PROT_WRITE,
+		    MAP_ANON|MAP_PRIVATE, -1, 0)) == MAP_FAILED) {
+	perror("mmap failed");
+	abort();
+    }
+#else
+    ptr = (Malloc_t)PerlMem_malloc(size?size:1);
+#endif
     PERL_ALLOC_CHECK(ptr);
     if (ptr != NULL) {
 #ifdef PERL_TRACK_MEMPOOL
@@ -106,6 +119,10 @@ Perl_safesysmalloc(MEM_SIZE size)
 	header->size = size;
 #  endif
         ptr = (Malloc_t)((char*)ptr+sTHX);
+#endif
+#ifdef PERL_DEBUG_READONLY_COW
+	*(IV *)ptr = (IV)size;
+	ptr = (Malloc_t)((char*)ptr+sizeof(IV));
 #endif
 	DEBUG_m(PerlIO_printf(Perl_debug_log, "0x%"UVxf": (%05ld) malloc %ld bytes\n",PTR2UV(ptr),(long)PL_an++,(long)size));
 	return ptr;
@@ -132,6 +149,10 @@ Perl_safesysrealloc(Malloc_t where,MEM_SIZE size)
     dTHX;
 #endif
     Malloc_t ptr;
+#ifdef PERL_DEBUG_READONLY_COW
+    MEM_SIZE oldsize =
+	where ? (MEM_SIZE)*(IV *)((char *)where - sizeof(IV)) : 0;
+#endif
 #if !defined(STANDARD_C) && !defined(HAS_REALLOC_PROTOTYPE) && !defined(PERL_MICRO)
     Malloc_t PerlMem_realloc();
 #endif /* !defined(STANDARD_C) && !defined(HAS_REALLOC_PROTOTYPE) */
@@ -143,6 +164,9 @@ Perl_safesysrealloc(Malloc_t where,MEM_SIZE size)
 
     if (!where)
 	return safesysmalloc(size);
+#ifdef PERL_DEBUG_READONLY_COW
+    where = (Malloc_t)((char*)where-sizeof(IV));
+#endif
 #ifdef PERL_TRACK_MEMPOOL
     where = (Malloc_t)((char*)where-sTHX);
     size += sTHX;
@@ -170,7 +194,20 @@ Perl_safesysrealloc(Malloc_t where,MEM_SIZE size)
     if ((SSize_t)size < 0)
 	Perl_croak_nocontext("panic: realloc, size=%"UVuf, (UV)size);
 #endif
+#ifdef PERL_DEBUG_READONLY_COW
+    if ((ptr = mmap(0, size+sizeof(IV), PROT_READ|PROT_WRITE,
+		    MAP_ANON|MAP_PRIVATE, -1, 0)) == MAP_FAILED) {
+	perror("mmap failed");
+	abort();
+    }
+    Copy(where,ptr,(oldsize < size ? oldsize : size)+sizeof(IV),char);
+    if (munmap(where, oldsize+sizeof(IV))) {
+	perror("munmap failed");
+	abort();
+    }
+#else
     ptr = (Malloc_t)PerlMem_realloc(where,size);
+#endif
     PERL_ALLOC_CHECK(ptr);
 
     /* MUST do this fixup first, before doing ANYTHING else, as anything else
@@ -193,6 +230,12 @@ Perl_safesysrealloc(Malloc_t where,MEM_SIZE size)
 	header->prev->next = header;
 
         ptr = (Malloc_t)((char*)ptr+sTHX);
+    }
+#endif
+#ifdef PERL_DEBUG_READONLY_COW
+    if (ptr) {
+	*(IV *)ptr = (IV)size;
+	ptr = (Malloc_t)((char *)ptr + sizeof(IV));
     }
 #endif
 
@@ -231,6 +274,10 @@ Perl_safesysfree(Malloc_t where)
 #endif
     DEBUG_m( PerlIO_printf(Perl_debug_log, "0x%"UVxf": (%05ld) free\n",PTR2UV(where),(long)PL_an++));
     if (where) {
+#ifdef PERL_DEBUG_READONLY_COW
+	MEM_SIZE size = (MEM_SIZE)*(IV *)((char *)where - sizeof(IV));
+	where = (Malloc_t)((char *)where - sizeof(IV));
+#endif
 #ifdef PERL_TRACK_MEMPOOL
         where = (Malloc_t)((char*)where-sTHX);
 	{
@@ -262,7 +309,14 @@ Perl_safesysfree(Malloc_t where)
 	    header->next = NULL;
 	}
 #endif
+#ifdef PERL_DEBUG_READONLY_COW
+	if (munmap(where, size+sizeof(IV))) {
+	    perror("munmap failed");
+	    abort();
+	}	
+#else
 	PerlMem_free(where);
+#endif
     }
 }
 
@@ -271,6 +325,9 @@ Perl_safesysfree(Malloc_t where)
 Malloc_t
 Perl_safesyscalloc(MEM_SIZE count, MEM_SIZE size)
 {
+#ifdef PERL_DEBUG_READONLY_COW
+    return Perl_safesysmalloc(count*size);
+#else
 #ifdef ALWAYS_NEED_THX
     dTHX;
 #endif
@@ -342,6 +399,7 @@ Perl_safesyscalloc(MEM_SIZE count, MEM_SIZE size)
 	    return NULL;
 	croak_no_mem();
     }
+#endif /* PERL_DEBUG_READONLY_COW */
 }
 
 /* These must be defined when not using Perl's malloc for binary

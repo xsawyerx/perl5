@@ -248,29 +248,6 @@ S_bootstrap_ctype(U8 character, UV classnum, bool full_Latin1)
 }
 #endif
 
-#ifdef PERL_DEBUG_READONLY_COW
-# include <sys/mman.h>
-PERL_STATIC_INLINE Malloc_t
-S_Renew(pTHX_ Malloc_t ptr, MEM_SIZE sz)
-{
-    Malloc_t newbuff = mmap(0, sz+sizeof(IV), PROT_READ|PROT_WRITE,
-                            MAP_ANON|MAP_PRIVATE, -1, 0);
-    if (newbuff == MAP_FAILED) {
-	perror("mmap failed");
-	abort();
-    }
-    *(IV *)newbuff = sz;
-    newbuff += sizeof(IV);
-    Copy(ptr,newbuff,*(IV *)(ptr-sizeof(IV)),char);
-    ptr -= sizeof(IV);
-    if (munmap(ptr, *(IV *)ptr+sizeof(IV))) {
-	perror("munmap failed");
-	abort();
-    }
-    return newbuff;
-}
-#endif
-
 /* ------------------------------- utf8.h ------------------------------- */
 
 PERL_STATIC_INLINE void
