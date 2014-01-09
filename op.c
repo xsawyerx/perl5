@@ -11183,6 +11183,53 @@ Perl_rpeep(pTHX_ OP *o)
 		}
 	    }
 
+	    /* Optimise 'my $x; my $y;' into 'my ($x, $y);' */
+	    if (o->op_next && (
+		    o->op_next->op_type == OP_PADSV
+		 || o->op_next->op_type == OP_PADAV
+		 || o->op_next->op_type == OP_PADHV
+		)
+		&& !(o->op_next->op_private & ~OPpLVAL_INTRO)
+		&& o->op_next->op_next && o->op_next->op_next->op_type == OP_NEXTSTATE
+		&& o->op_next->op_next->op_next && (
+		    o->op_next->op_next->op_next->op_type == OP_PADSV
+		 || o->op_next->op_next->op_next->op_type == OP_PADAV
+		 || o->op_next->op_next->op_next->op_type == OP_PADHV
+		)
+		&& !(o->op_next->op_next->op_next->op_private & ~OPpLVAL_INTRO)
+		&& o->op_next->op_next->op_next->op_next && o->op_next->op_next->op_next->op_next->op_type == OP_NEXTSTATE
+		&& (!CopLABEL((COP*)o))
+		&& (!CopLABEL((COP*)o->op_next->op_next))
+	    ) {
+		OP *first;
+		OP *last;
+		OP *newop;
+
+		first = o->op_next;
+		last = o->op_next->op_next->op_next;
+
+		newop = newLISTOP(OP_LIST, 0, first, last);
+		newop->op_flags |= OPf_PARENS;
+		newop->op_flags = (newop->op_flags & ~OPf_WANT) | OPf_WANT_VOID;
+
+		/* Kill nextstate between first/second pad */
+		first->op_next->op_type = OP_NULL;
+		first->op_next->op_ppaddr = PL_ppaddr[OP_NULL];
+
+		first->op_next = last;
+		first->op_sibling = last;
+		o->op_next = cUNOPx(newop)->op_first; /* Pushmark */
+		o->op_next->op_next = first;  /* padsv */
+		o->op_next->op_sibling = first;
+		newop->op_next = last->op_next; /* nextstate */
+		newop->op_sibling = last->op_sibling;
+		last->op_next = newop; /* listop */
+		last->op_sibling = NULL;
+		o->op_sibling = newop;
+
+		break;
+	    }
+
 	    /* Two NEXTSTATEs in a row serve no purpose. Except if they happen
 	       to carry two labels. For now, take the easier option, and skip
 	       this optimisation if the first NEXTSTATE has a label.  */
