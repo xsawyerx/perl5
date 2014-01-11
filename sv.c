@@ -4048,26 +4048,34 @@ S_glob_assign_ref(pTHX_ SV *const dstr, SV *const sstr)
 #ifdef PERL_DEBUG_READONLY_COW
 # include <sys/mman.h>
 
+# ifndef sTHX
+#  define sTHX 0
+# endif
+
 void
 Perl_sv_buf_to_ro(pTHX_ SV *sv)
 {
-    char * const buf = SvPVX(sv)-sizeof(IV);
-    const size_t len = (size_t)*(IV *)buf;
+    struct perl_memory_debug_header * const header =
+	(struct perl_memory_debug_header *)(SvPVX(sv)-sTHX);
+    const MEM_SIZE len = header->size;
     PERL_ARGS_ASSERT_SV_BUF_TO_RO;
-    if (mprotect(buf, len, PROT_READ))
+    if (!header->readonly) header->readonly = 1;
+    if (mprotect(header, len, PROT_READ))
 	Perl_warn(aTHX_ "mprotect RW for COW string %p %lu failed with %d",
-			 buf, len, errno);
+			 header, len, errno);
 }
 
 void
 Perl_sv_buf_to_rw(pTHX_ SV *sv)
 {
-    char * const buf = SvPVX(sv)-sizeof(IV);
-    const size_t len = (size_t)*(IV *)buf;
+    struct perl_memory_debug_header * const header =
+	(struct perl_memory_debug_header *)(SvPVX(sv)-sTHX);
+    const MEM_SIZE len = header->size;
     PERL_ARGS_ASSERT_SV_BUF_TO_RW;
-    if (mprotect(buf, len, PROT_READ|PROT_WRITE))
+    if (mprotect(header, len, PROT_READ|PROT_WRITE))
 	Perl_warn(aTHX_ "mprotect for COW string %p %lu failed with %d",
-			 buf, len, errno);
+			 header, len, errno);
+    header->readonly = 0;
 }
 
 #else
@@ -4577,7 +4585,7 @@ Perl_sv_setsv_cow(pTHX_ SV *dstr, SV *sstr)
     STRLEN cur = SvCUR(sstr);
     STRLEN len = SvLEN(sstr);
     char *new_pv;
-#ifdef PERL_DEBUG_READONLY_COW
+#if defined(PERL_DEBUG_READONLY_COW) && defined(PERL_NEW_COPY_ON_WRITE)
     const bool already = cBOOL(SvIsCOW(sstr));
 #endif
 

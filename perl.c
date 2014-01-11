@@ -1349,11 +1349,7 @@ perl_free(pTHXx)
 		PL_debug &= ~ DEBUG_m_FLAG;
 	    }
 	    while(aTHXx->Imemory_debug_header.next != &(aTHXx->Imemory_debug_header))
-		safesysfree(sTHX + (char *)(aTHXx->Imemory_debug_header.next)
-# ifdef PERL_DEBUG_READONLY_COW
-				+ sizeof(IV)
-# endif
-		);
+		safesysfree(sTHX + (char *)(aTHXx->Imemory_debug_header.next));
 	    PL_debug = old_debug;
 	}
     }
