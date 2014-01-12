@@ -300,12 +300,17 @@ Perl_safesysfree(Malloc_t where)
 #endif
     DEBUG_m( PerlIO_printf(Perl_debug_log, "0x%"UVxf": (%05ld) free\n",PTR2UV(where),(long)PL_an++));
     if (where) {
+#if defined(PERL_TRACK_MEMPOOL) || defined(PERL_DEBUG_READONLY_COW)
         where = (Malloc_t)((char*)where-sTHX);
-#ifdef PERL_TRACK_MEMPOOL
 	{
 	    struct perl_memory_debug_header *const header
 		= (struct perl_memory_debug_header *)where;
 
+# if (defined(PERL_POISON) && defined(PERL_TRACK_MEMPOOL)) \
+   || defined(PERL_DEBUG_READONLY_COW)
+	    const MEM_SIZE size = header->size;
+# endif
+# ifdef PERL_TRACK_MEMPOOL
 	    if (header->interpreter != aTHX) {
 		Perl_croak_nocontext("panic: free from wrong pool, %p!=%p",
 				     header->interpreter, aTHX);
@@ -328,21 +333,22 @@ Perl_safesysfree(Malloc_t where)
 	    maybe_protect_rw(header->prev);
 	    header->prev->next = header->next;
 	    maybe_protect_ro(header->prev);
+	    maybe_protect_rw(header);
 #  ifdef PERL_POISON
-	    PoisonNew(where, header->size, char);
+	    PoisonNew(where, size, char);
 #  endif
 	    /* Trigger the duplicate free warning.  */
-	    maybe_protect_rw(header);
 	    header->next = NULL;
+# endif
+# ifdef PERL_DEBUG_READONLY_COW
+	    if (munmap(where, size)) {
+		perror("munmap failed");
+		abort();
+	    }	
+# endif
 	}
 #endif
-#ifdef PERL_DEBUG_READONLY_COW
-	if (munmap(where,
-		   ((struct perl_memory_debug_header *)where)->size)) {
-	    perror("munmap failed");
-	    abort();
-	}	
-#else
+#ifndef PERL_DEBUG_READONLY_COW
 	PerlMem_free(where);
 #endif
     }
