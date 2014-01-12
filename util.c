@@ -421,6 +421,7 @@ Perl_safesyscalloc(MEM_SIZE count, MEM_SIZE size)
 	    maybe_protect_rw(header->next);
 	    header->next->prev = header;
 	    maybe_protect_ro(header->next);
+#  endif
 #  ifdef PERL_DEBUG_READONLY_COW
 	    header->readonly = 0;
 #  endif
