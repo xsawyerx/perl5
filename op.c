@@ -5153,7 +5153,8 @@ Perl_newPADOP(pTHX_ I32 type, I32 flags, SV *sv)
     if (PL_opargs[type] & OA_RETSCALAR)
 	scalar((OP*)padop);
     if (PL_opargs[type] & OA_TARGET)
-	padop->op_targ = pad_alloc(type, SVs_PADTMP);
+	padop->op_targ =
+	    pad_alloc(type, IS_PADGV(sv) ? SVf_READONLY : SVs_PADTMP);
     return CHECKOP(type, padop);
 }
 
