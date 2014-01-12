@@ -353,26 +353,25 @@ Perl_safesysfree(Malloc_t where)
 Malloc_t
 Perl_safesyscalloc(MEM_SIZE count, MEM_SIZE size)
 {
-#ifdef PERL_DEBUG_READONLY_COW
-    return Perl_safesysmalloc(count*size);
-#else
 #ifdef ALWAYS_NEED_THX
     dTHX;
 #endif
     Malloc_t ptr;
-#if defined(PERL_TRACK_MEMPOOL) || defined(DEBUGGING)
+#if defined(PERL_TRACK_MEMPOOL) || defined(DEBUGGING) \
+ || defined(PERL_DEBUG_READONLY_COW)
     MEM_SIZE total_size = 0;
 #endif
 
     /* Even though calloc() for zero bytes is strange, be robust. */
     if (size && (count <= MEM_SIZE_MAX / size)) {
-#if defined(PERL_TRACK_MEMPOOL) || defined(DEBUGGING)
+#if defined(PERL_TRACK_MEMPOOL) || defined(DEBUGGING) \
+ || defined(PERL_DEBUG_READONLY_COW)
 	total_size = size * count;
 #endif
     }
     else
 	croak_memory_wrap();
-#ifdef PERL_TRACK_MEMPOOL
+#if defined(PERL_TRACK_MEMPOOL) || defined(PERL_DEBUG_READONLY_COW)
     if (sTHX <= MEM_SIZE_MAX - (MEM_SIZE)total_size)
 	total_size += sTHX;
     else
@@ -383,7 +382,13 @@ Perl_safesyscalloc(MEM_SIZE count, MEM_SIZE size)
 	Perl_croak_nocontext("panic: calloc, size=%"UVuf", count=%"UVuf,
 			     (UV)size, (UV)count);
 #endif
-#ifdef PERL_TRACK_MEMPOOL
+#ifdef PERL_DEBUG_READONLY_COW
+    if ((ptr = mmap(0, total_size ? total_size : 1, PROT_READ|PROT_WRITE,
+		    MAP_ANON|MAP_PRIVATE, -1, 0)) == MAP_FAILED) {
+	perror("mmap failed");
+	abort();
+    }
+#elif defined(PERL_TRACK_MEMPOOL)
     /* Have to use malloc() because we've added some space for our tracking
        header.  */
     /* malloc(0) is non-portable. */
@@ -399,19 +404,28 @@ Perl_safesyscalloc(MEM_SIZE count, MEM_SIZE size)
     PERL_ALLOC_CHECK(ptr);
     DEBUG_m(PerlIO_printf(Perl_debug_log, "0x%"UVxf": (%05ld) calloc %ld x %ld bytes\n",PTR2UV(ptr),(long)PL_an++,(long)count,(long)total_size));
     if (ptr != NULL) {
-#ifdef PERL_TRACK_MEMPOOL
+#if defined(PERL_TRACK_MEMPOOL) || defined(PERL_DEBUG_READONLY_COW)
 	{
 	    struct perl_memory_debug_header *const header
 		= (struct perl_memory_debug_header *)ptr;
 
+#  ifndef PERL_DEBUG_READONLY_COW
 	    memset((void*)ptr, 0, total_size);
+#  endif
+#  ifdef PERL_TRACK_MEMPOOL
 	    header->interpreter = aTHX;
 	    /* Link us into the list.  */
 	    header->prev = &PL_memory_debug_header;
 	    header->next = PL_memory_debug_header.next;
 	    PL_memory_debug_header.next = header;
+	    maybe_protect_rw(header->next);
 	    header->next->prev = header;
-#  ifdef PERL_POISON
+	    maybe_protect_ro(header->next);
+#  ifdef PERL_DEBUG_READONLY_COW
+	    header->readonly = 0;
+#  endif
+#  if (defined(PERL_POISON) && defined(PERL_TRACK_MEMPOOL)) \
+    || defined(PERL_DEBUG_READONLY_COW)
 	    header->size = total_size;
 #  endif
 	    ptr = (Malloc_t)((char*)ptr+sTHX);
@@ -427,7 +441,6 @@ Perl_safesyscalloc(MEM_SIZE count, MEM_SIZE size)
 	    return NULL;
 	croak_no_mem();
     }
-#endif /* PERL_DEBUG_READONLY_COW */
 }
 
 /* These must be defined when not using Perl's malloc for binary
