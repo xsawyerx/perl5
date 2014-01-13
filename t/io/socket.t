@@ -77,7 +77,7 @@ SKIP: {
 		defined $sent or last;
 		$sent_total += $sent;
 	    }
-	    ok(shutdown($accept, 1), "shutdown() works");
+	    my $shutdown = shutdown($accept, 1);
 
 	    # wait for the remote to close so data isn't lost in
 	    # transit on a certain broken implementation
@@ -85,9 +85,11 @@ SKIP: {
 	    # child tests are printed once we hit eof
 	    curr_test(curr_test()+5);
 	    waitpid($pid, 0);
+
+	    ok($shutdown, "shutdown() works");
 	}
 	elsif (defined $pid) {
-	    curr_test(curr_test()+3);
+	    curr_test(curr_test()+2);
 	    #sleep 1;
 	    # child
 	    ok_child(close($serv), "close server socket in child");
