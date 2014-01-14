@@ -4059,7 +4059,9 @@ Perl_sv_buf_to_ro(pTHX_ SV *sv)
 	(struct perl_memory_debug_header *)(SvPVX(sv)-sTHX);
     const MEM_SIZE len = header->size;
     PERL_ARGS_ASSERT_SV_BUF_TO_RO;
+# ifdef PERL_TRACK_MEMPOOL
     if (!header->readonly) header->readonly = 1;
+# endif
     if (mprotect(header, len, PROT_READ))
 	Perl_warn(aTHX_ "mprotect RW for COW string %p %lu failed with %d",
 			 header, len, errno);
@@ -4075,7 +4077,9 @@ Perl_sv_buf_to_rw(pTHX_ SV *sv)
     if (mprotect(header, len, PROT_READ|PROT_WRITE))
 	Perl_warn(aTHX_ "mprotect for COW string %p %lu failed with %d",
 			 header, len, errno);
+# ifdef PERL_TRACK_MEMPOOL
     header->readonly = 0;
+# endif
 }
 
 #else

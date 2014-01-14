@@ -248,12 +248,11 @@ Perl_safesysrealloc(Malloc_t where,MEM_SIZE size)
     /* MUST do this fixup first, before doing ANYTHING else, as anything else
        might allocate memory/free/move memory, and until we do the fixup, it
        may well be chasing (and writing to) free memory.  */
-#ifdef USE_MDH
     if (ptr != NULL) {
+#ifdef PERL_TRACK_MEMPOOL
 	struct perl_memory_debug_header *const header
 	    = (struct perl_memory_debug_header *)ptr;
 
-# ifdef PERL_TRACK_MEMPOOL
 #  ifdef PERL_POISON
 	if (header->size < size) {
 	    const MEM_SIZE fresh = size - header->size;
@@ -268,10 +267,9 @@ Perl_safesysrealloc(Malloc_t where,MEM_SIZE size)
 	maybe_protect_rw(header->prev);
 	header->prev->next = header;
 	maybe_protect_ro(header->prev);
-# endif
+#endif
         ptr = (Malloc_t)((char*)ptr+sTHX);
     }
-#endif
 
     /* In particular, must do that fixup above before logging anything via
      *printf(), as it can reallocate memory, which can cause SEGVs.  */
@@ -432,9 +430,9 @@ Perl_safesyscalloc(MEM_SIZE count, MEM_SIZE size)
 	    maybe_protect_rw(header->next);
 	    header->next->prev = header;
 	    maybe_protect_ro(header->next);
-#  endif
-#  ifdef PERL_DEBUG_READONLY_COW
+#    ifdef PERL_DEBUG_READONLY_COW
 	    header->readonly = 0;
+#    endif
 #  endif
 #  ifdef MDH_HAS_SIZE
 	    header->size = total_size;
