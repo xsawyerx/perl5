@@ -46,12 +46,13 @@ their tests, unlike other core modules.
 
 =item * F<ext/>
 
-Like F<lib/>, this directory contains modules which are only released as part
-of the core.  Unlike F<lib/>, however, a module under F<ext/> generally has a
-CPAN-style directory- and file-layout and its own F<Makefile.PL>.  There is no
-expectation that a module under F<ext/> will work with earlier versions of
-Perl 5.  Hence, such a module may take full advantage of syntactical and other
-improvements in Perl 5 blead.
+Like F<lib/>, this directory contains modules which are only released
+as part of the core.  Unlike F<lib/>, however, a module under F<ext/>
+generally has a CPAN-style directory- and file-layout and its own
+F<Makefile.PL>.  There is no expectation that a module under F<ext/>
+will work with earlier versions of Perl 5.  Hence, such a module may
+take full advantage of syntactical and other improvements in Perl 5
+blead.
 
 =item * F<dist/>
 
@@ -122,10 +123,10 @@ other directories.
 
 =item * F<t/opbasic/>
 
-Tests for perl's built in functions which, like those in F<t/op/>, do not fit
-into any of the other directories, but which, in addition, cannot use
-F<t/test.pl>,as that program depends on functionality which the
-test file itself is testing.
+Tests for perl's built in functions which, like those in F<t/op/>, do
+not fit into any of the other directories, but which, in addition,
+cannot use F<t/test.pl>,as that program depends on functionality which
+the test file itself is testing.
 
 =item * F<t/re/>
 
