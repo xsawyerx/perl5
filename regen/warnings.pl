@@ -407,6 +407,7 @@ EOM
 
 while (<DATA>) {
     last if /^KEYWORDS$/ ;
+    s/^%podname%/warnings/;
     if ($_ eq "=for warnings.pl tree-goes-here\n") {
       print $pm warningsTree($tree, "    ");
       next;
@@ -481,7 +482,7 @@ unless ( __FILE__ =~ /(^|[\/\\])\Q${\__PACKAGE__}\E\.pmc?$/ ) {
 
 =head1 NAME
 
-warnings - Perl pragma to control optional warnings
+%podname% - Perl pragma to control optional warnings
 
 =head1 SYNOPSIS
 
