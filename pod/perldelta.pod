@@ -342,6 +342,13 @@ files in F<ext/> and F<lib/> are best summarized in L</Modules and Pragmata>.
 
 XXX
 
+=item *
+
+A mismatch between the documentation and the code in utf8::downgrade()
+was fixed in favour of the documentation. The optional second argument
+is now correctly treated as a perl boolean (true/false semantics) and
+not as an integer.
+
 =back
 
 =head1 Known Problems
