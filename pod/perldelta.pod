@@ -123,6 +123,10 @@ L<Module::CoreList> has been upgraded from version 3.10 to 3.11.
 
 The list of Perl versions covered has been updated.
 
+=item *
+
+L<Hash::Util> has been upgraded from version 0.16 to 0.17
+
 =back
 
 =head2 Removed Modules and Pragmata
