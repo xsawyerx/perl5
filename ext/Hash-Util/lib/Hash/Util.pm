@@ -577,24 +577,36 @@ would be used in production code.
 sub bucket_stats {
     my ($hash) = @_;
     my ($keys, $buckets, $used, @length_counts) = bucket_info($hash);
-    my $sum;
+    my $sum= 0;
+    my $sq_sum= 0;
     my $score;
     for (1 .. $#length_counts) {
-        $sum += ($length_counts[$_] * $_);
-        $score += $length_counts[$_] * ( $_ * ($_ + 1 ) / 2 );
+        $sum    += ($length_counts[$_] * $_);
+        $sq_sum += ($length_counts[$_] * $_) ** 2;
+
+        $score  += $length_counts[$_] * ( $_ * ($_ + 1 ) / 2 );
     }
-    $score = $score /
+    $score = $score 
+             / 
              (( $keys / (2 * $buckets )) * ( $keys + ( 2 * $buckets ) - 1 ))
                  if $keys;
-    my ($mean, $stddev)= (0, 0);
-    if ($used) {
-        $mean= $sum / $used;
-        $sum= 0;
-        $sum += ($length_counts[$_] * (($_-$mean)**2)) for 1 .. $#length_counts;
 
-        $stddev= sqrt($sum/$used);
-    }
-    return $keys, $buckets, $used, $keys ? ($score, $used/$buckets, ($keys-$used)/$keys, $mean, $stddev, @length_counts) : ();
+    my ($mean_used, $stddev_used)= (0, 0);
+    my ($mean_all,  $stddev_all)=  (0, 0);
+    if ($used) {
+        $mean_used= $sum / $used;
+        $stddev_used= int( sqrt( ( $sq_sum - ( ( $sum ** 2 ) / $used ) ) / $used ) );
+        $mean_all= $sum / $buckets;
+        $stddev_all=  int( sqrt( ( $sq_sum - ( ( $sum ** 2 ) / $buckets ) ) / $buckets ) );
+
+    } 
+    return $keys, $buckets, $used, 
+           $keys ? ($score, 
+                    $used/$buckets, 
+                    ($keys-$used)/$keys, 
+                    $mean_used, $stddev_used, 
+                    $mean_all, $stddev_all,
+                    @length_counts) : ();
 }
 
 =item B<bucket_stats_formatted>
@@ -679,16 +691,19 @@ sub _bucket_stats_formatted_bars {
 sub bucket_stats_formatted {
     my ($hashref)= @_;
     my ($keys, $buckets, $used, $score, $utilization_ratio, $collision_pct,
-        $mean, $stddev, @length_counts) = bucket_stats($hashref);
+        $mean_used, $stddev_used, $mean_all, $stddev_all, 
+        @length_counts) = bucket_stats($hashref);
 
     my $return= sprintf   "Keys: %d Buckets: %d/%d Quality-Score: %.2f (%s)\n"
                         . "Utilized Buckets: %.2f%% Optimal: %.2f%% Keys In Collision: %.2f%%\n"
-                        . "Chain Length - mean: %.2f stddev: %.2f\n",
+                        . "Chain Length All - mean: %.2f stddev: %.2f\n"
+                        . "Chain Length Used- mean: %.2f stddev: %.2f\n",
                 $keys, $used, $buckets, $score, $score <= 1.05 ? "Good" : $score < 1.2 ? "Poor" : "Bad",
                 $utilization_ratio * 100,
                 $keys/$buckets * 100,
                 $collision_pct * 100,
-                $mean, $stddev;
+                $mean_all, $stddev_all,
+                $mean_used, $stddev_used;
 
     my @key_depth;
     $key_depth[$_]= $length_counts[$_] + ( $key_depth[$_+1] || 0 )

@@ -2006,6 +2006,15 @@ void Perl_mem_log_del_sv(const SV *sv, const char *filename, const int linenumbe
 
 #endif
 
+#ifdef __GNUC__
+#  define PERL_ALIGNED(x) __attribute__((aligned(x)))
+#elif defined(_MSC_VER)
+#  define PERL_ALIGNED(x) __declspec(align(x))
+#else
+#  define PERL_ALIGNED(x)
+#  define PERL_ALIGNED_MISSING
+#endif
+
 #endif  /* HANDY_H */
 
 /*

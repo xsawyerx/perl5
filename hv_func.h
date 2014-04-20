@@ -13,19 +13,27 @@
 #define PERL_SEEN_HV_FUNC_H
 
 #if !( 0 \
-        || defined(PERL_HASH_FUNC_SIPHASH) \
+        || defined(PERL_HASH_FUNC_SIPHASH_2_4) \
+        || defined(PERL_HASH_FUNC_SIPHASH_1_2) \
         || defined(PERL_HASH_FUNC_SDBM) \
         || defined(PERL_HASH_FUNC_DJB2) \
+        || defined(PERL_HASH_FUNC_LOOKUP3) \
         || defined(PERL_HASH_FUNC_SUPERFAST) \
         || defined(PERL_HASH_FUNC_MURMUR3) \
         || defined(PERL_HASH_FUNC_ONE_AT_A_TIME) \
         || defined(PERL_HASH_FUNC_ONE_AT_A_TIME_HARD) \
         || defined(PERL_HASH_FUNC_ONE_AT_A_TIME_OLD) \
+        || defined(PERL_HASH_FUNC_WRAPPED) \
+        || defined(PERL_HASH_FUNC_AESHASH) \
     )
-#define PERL_HASH_FUNC_ONE_AT_A_TIME_HARD
+#define PERL_HASH_FUNC_AESHASH
 #endif
 
-#if defined(PERL_HASH_FUNC_SIPHASH)
+#if defined(PERL_HASH_FUNC_SIPHASH_1_2)
+#   define PERL_HASH_FUNC "SIPHASH_1_2"
+#   define PERL_HASH_SEED_BYTES 16
+#   define PERL_HASH(hash,str,len) (hash)= S_perl_hash_siphash_1_2(PERL_HASH_SEED,(U8*)(str),(len))
+#elif defined(PERL_HASH_FUNC_SIPHASH_2_4)
 #   define PERL_HASH_FUNC "SIPHASH_2_4"
 #   define PERL_HASH_SEED_BYTES 16
 #   define PERL_HASH(hash,str,len) (hash)= S_perl_hash_siphash_2_4(PERL_HASH_SEED,(U8*)(str),(len))
@@ -57,6 +65,25 @@
 #   define PERL_HASH_FUNC "ONE_AT_A_TIME_OLD"
 #   define PERL_HASH_SEED_BYTES 4
 #   define PERL_HASH(hash,str,len) (hash)= S_perl_hash_old_one_at_a_time(PERL_HASH_SEED,(U8*)(str),(len))
+#elif defined(PERL_HASH_FUNC_LOOKUP3)
+#   define PERL_HASH_FUNC "LOOKUP3"
+#   define PERL_HASH_SEED_BYTES 4
+#   define PERL_HASH(hash,str,len) (hash)= S_perl_hash_lookup3_hashlittle(PERL_HASH_SEED, (U8*)(str),(len))
+#   include "hv_lookup3.h"
+#elif defined(PERL_HASH_FUNC_AESHASH)
+#   define PERL_HASH_FUNC "AESHASH"
+#   define PERL_HASH_SEED_BYTES 48
+#   define PERL_HASH_SEED_BYTES_INIT 16
+#   define BUILD_PERL_HASH_FUNC_AESHASH
+#   define PERL_HASH(hash,str,len) (hash)= S_perl_hash_aeshash(PERL_HASH_SEED,(U8*)(str),(len))
+#elif defined(PERL_HASH_FUNC_WRAPPED)
+#   define PERL_HASH_FUNC "WRAPPED"
+#   define PERL_HASH_SEED_BYTES 12
+#   define PERL_HASH(hash,str,len) (hash)= S_perl_hash_wrapped(PERL_HASH_SEED,(U8*)(str),(len))
+#endif
+
+#ifndef PERL_HASH_SEED_BYTES_INIT
+#define PERL_HASH_SEED_BYTES_INIT PERL_HASH_SEED_BYTES
 #endif
 
 #ifndef PERL_HASH
@@ -239,6 +266,58 @@ S_perl_hash_siphash_2_4(const unsigned char * const seed, const unsigned char *i
   v2 ^= 0xff;
   SIPROUND;
   SIPROUND;
+  SIPROUND;
+  SIPROUND;
+  b = v0 ^ v1 ^ v2  ^ v3;
+  return (U32)(b & U32_MAX);
+}
+
+PERL_STATIC_INLINE U32
+S_perl_hash_siphash_1_2(const unsigned char * const seed, const unsigned char *in, const STRLEN inlen) {
+  /* "somepseudorandomlygeneratedbytes" */
+  U64TYPE v0 = 0x736f6d6570736575ULL;
+  U64TYPE v1 = 0x646f72616e646f6dULL;
+  U64TYPE v2 = 0x6c7967656e657261ULL;
+  U64TYPE v3 = 0x7465646279746573ULL;
+
+  U64TYPE b;
+  U64TYPE k0 = ((U64TYPE*)seed)[0];
+  U64TYPE k1 = ((U64TYPE*)seed)[1];
+  U64TYPE m;
+  const int left = inlen & 7;
+  const U8 *end = in + inlen - left;
+
+  b = ( ( U64TYPE )(inlen) ) << 56;
+  v3 ^= k1;
+  v2 ^= k0;
+  v1 ^= k1;
+  v0 ^= k0;
+
+  for ( ; in != end; in += 8 )
+  {
+    m = U8TO64_LE( in );
+    v3 ^= m;
+    SIPROUND;
+    v0 ^= m;
+  }
+
+  switch( left )
+  {
+  case 7: b |= ( ( U64TYPE )in[ 6] )  << 48;
+  case 6: b |= ( ( U64TYPE )in[ 5] )  << 40;
+  case 5: b |= ( ( U64TYPE )in[ 4] )  << 32;
+  case 4: b |= ( ( U64TYPE )in[ 3] )  << 24;
+  case 3: b |= ( ( U64TYPE )in[ 2] )  << 16;
+  case 2: b |= ( ( U64TYPE )in[ 1] )  <<  8;
+  case 1: b |= ( ( U64TYPE )in[ 0] ); break;
+  case 0: break;
+  }
+
+  v3 ^= b;
+  SIPROUND;
+  v0 ^= b;
+
+  v2 ^= 0xff;
   SIPROUND;
   SIPROUND;
   b = v0 ^ v1 ^ v2  ^ v3;
@@ -507,29 +586,29 @@ PERL_STATIC_INLINE U32
 S_perl_hash_one_at_a_time_hard(const unsigned char * const seed, const unsigned char *str, const STRLEN len) {
     const unsigned char * const end = (const unsigned char *)str + len;
     U32 hash = *((U32*)seed) + len;
-    
+
     while (str < end) {
         hash += (hash << 10);
         hash ^= (hash >> 6);
         hash += *str++;
     }
-    
+
     hash += (hash << 10);
     hash ^= (hash >> 6);
     hash += seed[4];
-    
+
     hash += (hash << 10);
     hash ^= (hash >> 6);
     hash += seed[5];
-    
+
     hash += (hash << 10);
     hash ^= (hash >> 6);
     hash += seed[6];
-    
+
     hash += (hash << 10);
     hash ^= (hash >> 6);
     hash += seed[7];
-    
+
     hash += (hash << 10);
     hash ^= (hash >> 6);
 
@@ -537,6 +616,26 @@ S_perl_hash_one_at_a_time_hard(const unsigned char * const seed, const unsigned 
     hash ^= (hash >> 11);
     return (hash + (hash << 15));
 }
+
+#ifdef PERL_HASH_FUNC_WRAPPED
+
+#include "hv_lookup3.h"
+
+PERL_STATIC_INLINE U32
+S_perl_hash_wrapped(const unsigned char * const seed, const unsigned char *str, const STRLEN len) {
+    if (len > 1) {
+        return S_perl_hash_lookup3_hashlittle(seed + 8, str, len);
+    }
+    else
+    if (len == 1) {
+        return *((U32*)seed) ^ *str;
+    }
+    else {
+        return *((U32*)(seed + 4));
+    }
+}
+
+#endif
 
 PERL_STATIC_INLINE U32
 S_perl_hash_old_one_at_a_time(const unsigned char * const seed, const unsigned char *str, const STRLEN len) {
@@ -551,6 +650,147 @@ S_perl_hash_old_one_at_a_time(const unsigned char * const seed, const unsigned c
     hash ^= (hash >> 11);
     return (hash + (hash << 15));
 }
+
+#ifdef BUILD_PERL_HASH_FUNC_AESHASH
+/* requires -Accflags="-msse2 -maes -mssse3 -msse4" in ./Configure */
+
+#ifdef PERL_ALIGNED_MISSING
+#  error PERL_ALIGNED is not defined for this compiler cannot build AESHASH
+#endif
+
+#include <wmmintrin.h>
+/* various intrinsics __m128i, aesenc etc */
+
+#include <smmintrin.h>
+/* for _mm_exract_epi32 */
+
+#define PERL_HASH_FUNC_INIT(seed) S_perl_hash_aeshash_init(seed)
+
+PERL_STATIC_INLINE __m128i
+S_perl_hash_aes128_keyexpand(__m128i key, __m128i keygened)
+{
+        key = _mm_xor_si128(key, _mm_slli_si128(key, 4));
+        key = _mm_xor_si128(key, _mm_slli_si128(key, 4));
+        key = _mm_xor_si128(key, _mm_slli_si128(key, 4));
+        keygened = _mm_shuffle_epi32(keygened, _MM_SHUFFLE(3,3,3,3));
+        return _mm_xor_si128(key, keygened);
+}
+
+#define KEYEXP(K, I) S_perl_hash_aes128_keyexpand(K, _mm_aeskeygenassist_si128(K, I))
+
+PERL_STATIC_INLINE void
+S_perl_hash_aeshash_init(unsigned char *seed) {
+    __m128i *seedp= (__m128i*)(seed);
+
+    __m128i K0  = _mm_lddqu_si128(seedp);
+    __m128i K1  = KEYEXP(K0, 0x01);
+    __m128i K2  = KEYEXP(K1, 0x02);
+
+    _mm_storeu_si128(seedp+1, K1);
+    _mm_storeu_si128(seedp+2, K2);
+}
+
+/*  simple mask to get rid of data in the high part of the register. */
+static const uint32_t __andmask[64] PERL_ALIGNED(16) = {
+        0x00000000, 0x00000000, 0x00000000, 0x00000000,
+        0x000000ff, 0x00000000, 0x00000000, 0x00000000,
+        0x0000ffff, 0x00000000, 0x00000000, 0x00000000,
+        0x00ffffff, 0x00000000, 0x00000000, 0x00000000,
+        0xffffffff, 0x00000000, 0x00000000, 0x00000000,
+        0xffffffff, 0x000000ff, 0x00000000, 0x00000000,
+        0xffffffff, 0x0000ffff, 0x00000000, 0x00000000,
+        0xffffffff, 0x00ffffff, 0x00000000, 0x00000000,
+        0xffffffff, 0xffffffff, 0x00000000, 0x00000000,
+        0xffffffff, 0xffffffff, 0x000000ff, 0x00000000,
+        0xffffffff, 0xffffffff, 0x0000ffff, 0x00000000,
+        0xffffffff, 0xffffffff, 0x00ffffff, 0x00000000,
+        0xffffffff, 0xffffffff, 0xffffffff, 0x00000000,
+        0xffffffff, 0xffffffff, 0xffffffff, 0x000000ff,
+        0xffffffff, 0xffffffff, 0xffffffff, 0x0000ffff,
+        0xffffffff, 0xffffffff, 0xffffffff, 0x00ffffff
+};
+
+/* these are arguments to pshufb.  They move data down from
+ * the high bytes of the register to the low bytes of the register.
+ * index is how many bytes to move.
+ */
+static const uint32_t __shufmask[64] PERL_ALIGNED(16) = {
+        0x00000000, 0x00000000, 0x00000000, 0x00000000,
+        0xffffff0f, 0xffffffff, 0xffffffff, 0xffffffff,
+        0xffff0f0e, 0xffffffff, 0xffffffff, 0xffffffff,
+        0xff0f0e0d, 0xffffffff, 0xffffffff, 0xffffffff,
+        0x0f0e0d0c, 0xffffffff, 0xffffffff, 0xffffffff,
+        0x0e0d0c0b, 0xffffff0f, 0xffffffff, 0xffffffff,
+        0x0d0c0b0a, 0xffff0f0e, 0xffffffff, 0xffffffff,
+        0x0c0b0a09, 0xff0f0e0d, 0xffffffff, 0xffffffff,
+        0x0b0a0908, 0x0f0e0d0c, 0xffffffff, 0xffffffff,
+        0x0a090807, 0x0e0d0c0b, 0xffffff0f, 0xffffffff,
+        0x09080706, 0x0d0c0b0a, 0xffff0f0e, 0xffffffff,
+        0x08070605, 0x0c0b0a09, 0xff0f0e0d, 0xffffffff,
+        0x07060504, 0x0b0a0908, 0x0f0e0d0c, 0xffffffff,
+        0x06050403, 0x0a090807, 0x0e0d0c0b, 0xffffff0f,
+        0x05040302, 0x09080706, 0x0d0c0b0a, 0xffff0f0e,
+        0x04030201, 0x08070605, 0x0c0b0a09, 0xff0f0e0d
+};
+
+
+PERL_STATIC_INLINE U32
+S_perl_hash_aeshash(const unsigned char * const seed, const unsigned char *str, STRLEN len) {
+        __m128i block;
+        __m128i acc;
+
+        __m128i s0= _mm_load_si128((__m128i *) seed);       /* aligned - faster than _mm_loadu_si128 */
+        __m128i s1= _mm_load_si128((__m128i *)(seed + 16)); /* aligned - faster than _mm_loadu_si128 */
+        __m128i s2= _mm_load_si128((__m128i *)(seed + 32)); /* aligned - faster than _mm_loadu_si128 */
+
+
+        block= _mm_set1_epi64x((int64_t)len); /* sets both 64bit sub buffers to len */
+        acc=   _mm_xor_si128( s0, block ); /* and then xor the whole thing with the seed */
+
+        if ( len >= 16 ) {
+            do {
+                block= _mm_lddqu_si128((__m128i *) str);
+                str += 16;
+                len -= 16;
+
+                acc=  _mm_aesenc_si128( acc, s1 );
+                acc=  _mm_aesenc_si128( acc, block );
+
+            } while (len >= 16);
+
+            if ( len > 0 ) {
+                block= _mm_lddqu_si128((__m128i *)(str + len - 16));
+
+                goto partial;
+            }
+        } else if (len) {
+            /* check if we are going to cross a page boundary
+             * by reading 16 bytes */
+            if ((((STRLEN)str) & 0xFF) > 0xF0) {
+                /* might cross a page boundary, read from the end to the start
+                 * and then use PSHUFB to move the bytes back */
+                block= _mm_loadu_si128((__m128i *)(str + len - 16));
+                block= _mm_shuffle_epi8(block, ((__m128i *)__shufmask)[len]);
+            } else {
+                /* not crossing boundary, we can load it directly and then
+                 * mask off the bytes we aren't going to use (remember endianness) */
+                block= _mm_loadu_si128((__m128i *) str);
+                block= _mm_and_si128(block, ((__m128i *)__andmask)[len]);
+            }
+
+partial:
+            acc=  _mm_aesenc_si128( acc, s2 );
+            acc=  _mm_aesenc_si128( acc, block );
+
+        }
+
+        acc= _mm_aesenc_si128( acc, s1 );
+        acc= _mm_aesenc_si128( acc, s2 );
+        acc= _mm_aesenc_si128( acc, s1 );
+
+        return _mm_extract_epi32(acc,0);
+}
+#endif
 
 /* legacy - only mod_perl should be doing this.  */
 #ifdef PERL_HASH_INTERNAL_ACCESS
