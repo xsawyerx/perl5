@@ -834,7 +834,7 @@ Perl_hv_common(pTHX_ HV *hv, SV *keysv, const char *key, STRLEN klen,
         */
         if (PL_HASH_RAND_BITS_ENABLED) {
             if (PL_HASH_RAND_BITS_ENABLED == 1)
-                PL_hash_rand_bits += (PTRV)entry + 1;  /* we don't bother to use ptr_hash here */
+                PL_hash_rand_bits ^= (PTRV)entry + 1;  /* we don't bother to use ptr_hash here */
             PL_hash_rand_bits= ROTL_UV(PL_hash_rand_bits,1);
         }
         HvAUX(hv)->xhv_rand= (U32)PL_hash_rand_bits;
@@ -1204,7 +1204,7 @@ S_hsplit(pTHX_ HV *hv, STRLEN const oldsize, STRLEN newsize)
      * very few ops to do so. ROTL32() should produce a single machine operation. */
     if (PL_HASH_RAND_BITS_ENABLED) {
         if (PL_HASH_RAND_BITS_ENABLED == 1)
-            PL_hash_rand_bits += ptr_hash((PTRV)a);
+            PL_hash_rand_bits ^= ptr_hash((PTRV)a);
         PL_hash_rand_bits = ROTL_UV(PL_hash_rand_bits,1);
     }
 #endif
@@ -2010,7 +2010,7 @@ S_hv_auxinit(pTHX_ HV *hv) {
         if (PL_HASH_RAND_BITS_ENABLED) {
             /* mix in some new state to PL_hash_rand_bits to "randomize" the traversal order*/
             if (PL_HASH_RAND_BITS_ENABLED == 1)
-                PL_hash_rand_bits += ptr_hash((PTRV)array);
+                PL_hash_rand_bits ^= ptr_hash((PTRV)array);
             PL_hash_rand_bits = ROTL_UV(PL_hash_rand_bits,1);
         }
         iter->xhv_rand = HvFIRSTRAND(hv);
