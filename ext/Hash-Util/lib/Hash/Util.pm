@@ -581,8 +581,8 @@ sub bucket_stats {
     my $sq_sum= 0;
     my $score;
     for (1 .. $#length_counts) {
-        $sum    += ($length_counts[$_] * $_);
-        $sq_sum += ($length_counts[$_] * $_) ** 2;
+        $sum    += ( $length_counts[$_] *   $_        );
+        $sq_sum += ( $length_counts[$_] * ( $_ ** 2 ) );
 
         $score  += $length_counts[$_] * ( $_ * ($_ + 1 ) / 2 );
     }
@@ -596,6 +596,7 @@ sub bucket_stats {
     if ($used) {
         $mean_used= $sum / $used;
         $stddev_used= int( sqrt( ( $sq_sum - ( ( $sum ** 2 ) / $used ) ) / $used ) );
+
         $mean_all= $sum / $buckets;
         $stddev_all=  int( sqrt( ( $sq_sum - ( ( $sum ** 2 ) / $buckets ) ) / $buckets ) );
 
@@ -698,7 +699,11 @@ sub bucket_stats_formatted {
                         . "Utilized Buckets: %.2f%% Optimal: %.2f%% Keys In Collision: %.2f%%\n"
                         . "Chain Length All - mean: %.2f stddev: %.2f\n"
                         . "Chain Length Used- mean: %.2f stddev: %.2f\n",
-                $keys, $used, $buckets, $score, $score <= 1.05 ? "Good" : $score < 1.2 ? "Poor" : "Bad",
+                $keys, $used, $buckets, $score,
+                    $used == $keys ? "Perfect" :
+                        $score < 0.95 ? "Excellent" :
+                            $score <= 1.05 ? "Good" :
+                                $score < 1.2 ? "Poor" : "Bad",
                 $utilization_ratio * 100,
                 $keys/$buckets * 100,
                 $collision_pct * 100,
