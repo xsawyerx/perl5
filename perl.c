@@ -1466,10 +1466,18 @@ perl_parse(pTHXx_ XSINIT_t xsinit, int argc, char **argv, char **env)
 
         if (s && (atoi(s) == 1)) {
             unsigned char *seed= PERL_HASH_SEED;
-            unsigned char *seed_end= PERL_HASH_SEED + PERL_HASH_SEED_BYTES_INIT;
+            unsigned char *seed_init_end= PERL_HASH_SEED + PERL_HASH_SEED_BYTES_INIT;
+            unsigned char *seed_end= PERL_HASH_SEED + PERL_HASH_SEED_BYTES;
             PerlIO_printf(Perl_debug_log, "HASH_FUNCTION = %s HASH_SEED = 0x", PERL_HASH_FUNC);
-            while (seed < seed_end) {
+            while (seed < seed_init_end) {
                 PerlIO_printf(Perl_debug_log, "%02x", *seed++);
+            }
+            if (seed < seed_end) {
+                PerlIO_printf(Perl_debug_log, " [");
+                while (seed < seed_end) {
+                    PerlIO_printf(Perl_debug_log, "%02x", *seed++);
+                }
+                PerlIO_printf(Perl_debug_log, "]");
             }
 #ifdef PERL_HASH_RANDOMIZE_KEYS
             PerlIO_printf(Perl_debug_log, " PERTURB_KEYS = %d (%s)",

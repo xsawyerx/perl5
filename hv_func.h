@@ -26,7 +26,7 @@
         || defined(PERL_HASH_FUNC_WRAPPED) \
         || defined(PERL_HASH_FUNC_AESHASH) \
     )
-#define PERL_HASH_FUNC_AESHASH
+#define PERL_HASH_FUNC_ONE_AT_A_TIME_HARD
 #endif
 
 #if defined(PERL_HASH_FUNC_SIPHASH_1_2)
@@ -72,7 +72,7 @@
 #   include "hv_lookup3.h"
 #elif defined(PERL_HASH_FUNC_AESHASH)
 #   define PERL_HASH_FUNC "AESHASH"
-#   define PERL_HASH_SEED_BYTES 48
+#   define PERL_HASH_SEED_BYTES 64
 #   define PERL_HASH_SEED_BYTES_INIT 16
 #   define BUILD_PERL_HASH_FUNC_AESHASH
 #   define PERL_HASH(hash,str,len) (hash)= S_perl_hash_aeshash(PERL_HASH_SEED,(U8*)(str),(len))
@@ -664,7 +664,7 @@ S_perl_hash_old_one_at_a_time(const unsigned char * const seed, const unsigned c
 #include <smmintrin.h>
 /* for _mm_exract_epi32 */
 
-#define PERL_HASH_FUNC_INIT(seed) S_perl_hash_aeshash_init(seed)
+#define PERL_HASH_SEED_INIT(seed) S_perl_hash_aeshash_init(seed)
 
 PERL_STATIC_INLINE __m128i
 S_perl_hash_aes128_keyexpand(__m128i key, __m128i keygened)
@@ -681,13 +681,26 @@ S_perl_hash_aes128_keyexpand(__m128i key, __m128i keygened)
 PERL_STATIC_INLINE void
 S_perl_hash_aeshash_init(unsigned char *seed) {
     __m128i *seedp= (__m128i*)(seed);
+    __m128i K0= _mm_loadu_si128(seedp);
+    __m128i K1, K2, K3;
 
-    __m128i K0  = _mm_lddqu_si128(seedp);
-    __m128i K1  = KEYEXP(K0, 0x01);
-    __m128i K2  = KEYEXP(K1, 0x02);
+    K1= KEYEXP(K0, 0x01);
+    K2= KEYEXP(K1, 0x02);
+    K3= KEYEXP(K2, 0x04);
+    
+    K1= KEYEXP(K3, 0x08);
+    K2= KEYEXP(K1, 0x10);
+    K3= KEYEXP(K2, 0x20);
+    
+    K1= KEYEXP(K3, 0x40);
+    K2= KEYEXP(K1, 0x80);
+    K3= KEYEXP(K2, 0x1b);
+    K1= KEYEXP(K3, 0x36);
 
     _mm_storeu_si128(seedp+1, K1);
     _mm_storeu_si128(seedp+2, K2);
+    _mm_storeu_si128(seedp+3, K3);
+
 }
 
 /*  simple mask to get rid of data in the high part of the register. */
@@ -736,16 +749,18 @@ static const uint32_t __shufmask[64] PERL_ALIGNED(16) = {
 
 PERL_STATIC_INLINE U32
 S_perl_hash_aeshash(const unsigned char * const seed, const unsigned char *str, STRLEN len) {
+    if (len > 1) {
         __m128i block;
         __m128i acc;
 
         __m128i s0= _mm_load_si128((__m128i *) seed);       /* aligned - faster than _mm_loadu_si128 */
         __m128i s1= _mm_load_si128((__m128i *)(seed + 16)); /* aligned - faster than _mm_loadu_si128 */
         __m128i s2= _mm_load_si128((__m128i *)(seed + 32)); /* aligned - faster than _mm_loadu_si128 */
+        __m128i s3= _mm_load_si128((__m128i *)(seed + 48)); /* aligned - faster than _mm_loadu_si128 */
 
 
         block= _mm_set1_epi64x((int64_t)len); /* sets both 64bit sub buffers to len */
-        acc=   _mm_xor_si128( s0, block ); /* and then xor the whole thing with the seed */
+        acc= _mm_xor_si128( s0, block ); /* and then xor the whole thing with the seed */
 
         if ( len >= 16 ) {
             do {
@@ -753,17 +768,21 @@ S_perl_hash_aeshash(const unsigned char * const seed, const unsigned char *str, 
                 str += 16;
                 len -= 16;
 
+                acc=  _mm_aesenc_si128( block, acc );
                 acc=  _mm_aesenc_si128( acc, s1 );
-                acc=  _mm_aesenc_si128( acc, block );
+                acc=  _mm_aesenc_si128( acc, s2 );
 
             } while (len >= 16);
 
             if ( len > 0 ) {
+                /* reread part of the last block */
                 block= _mm_lddqu_si128((__m128i *)(str + len - 16));
 
                 goto partial;
             }
-        } else if (len) {
+        } else {
+            /* due to wrapper logic, len is always true here, which it must be */
+            /* assert(len > 0); */
             /* check if we are going to cross a page boundary
              * by reading 16 bytes */
             if ((((STRLEN)str) & 0xFF) > 0xF0) {
@@ -778,17 +797,25 @@ S_perl_hash_aeshash(const unsigned char * const seed, const unsigned char *str, 
                 block= _mm_and_si128(block, ((__m128i *)__andmask)[len]);
             }
 
-partial:
+          partial:
+            acc=  _mm_aesenc_si128( block, acc );
+            acc=  _mm_aesenc_si128( acc, s1 );
             acc=  _mm_aesenc_si128( acc, s2 );
-            acc=  _mm_aesenc_si128( acc, block );
 
         }
 
-        acc= _mm_aesenc_si128( acc, s1 );
+        acc= _mm_aesenc_si128( acc, s3 );
         acc= _mm_aesenc_si128( acc, s2 );
         acc= _mm_aesenc_si128( acc, s1 );
 
         return _mm_extract_epi32(acc,0);
+    } else if (len) {
+        U32 v= *str | *str << 8;
+        v= v | v << 16;
+        return *((U32*)(seed+48)) ^ v;
+    } else {
+        return *((U32*)(seed+52));
+    }
 }
 #endif
 
