@@ -642,7 +642,12 @@ Perl_hv_common(pTHX_ HV *hv, SV *keysv, const char *key, STRLEN klen,
 	    continue;
 	if (HeKEY(entry) != key && memNE(HeKEY(entry),key,klen))	/* is this it? */
 	    continue;
-	if ((HeKFLAGS(entry) ^ masked_flags) & HVhek_UTF8)
+        /* we assume that for hv_common it will be uncommon to have a hash with the
+         * same string in it that is both utf8-on and utf8-off, meaning that we expect
+         * the following test, even when performed after string comparison to be false
+         * most of the time, so we do it after the string comparison even though it is
+         * a faster operation. */
+        if ((HeKFLAGS(entry) ^ masked_flags) & HVhek_UTF8)
 	    continue;
 
         if (action & (HV_FETCH_LVALUE|HV_FETCH_ISSTORE)) {
@@ -1052,6 +1057,11 @@ S_hv_delete_common(pTHX_ HV *hv, SV *keysv, const char *key, STRLEN klen,
 	    continue;
 	if (HeKEY(entry) != key && memNE(HeKEY(entry),key,klen))	/* is this it? */
 	    continue;
+        /* we assume that for hv_delete it will be uncommon to have a hash with the
+         * same string in it that is both utf8-on and utf8-off, meaning that we expect
+         * the following test, even when performed after string comparison to be false
+         * most of the time, so we do it after the string comparison even though it is
+         * a faster operation. */
 	if ((HeKFLAGS(entry) ^ masked_flags) & HVhek_UTF8)
 	    continue;
 
@@ -2788,9 +2798,13 @@ S_unshare_hek_or_pvn(pTHX_ const HEK *hek, const char *str, I32 len, U32 hash)
                 continue;
             if (HeKLEN(entry) != len)
                 continue;
-            if (HeKEY(entry) != str && memNE(HeKEY(entry),str,len))	/* is this it? */
-                continue;
+            /* in PL_strtab the chance that two string collide, have the same length,
+             * and different flags is pretty good, as it holds all the keys in memory,
+             * and holds one entry per encoding (!), so we check the flag first.
+             * This is the opposite of hv_common/hv_delete. */
             if (HeKFLAGS(entry) != flags_masked)
+                continue;
+            if (HeKEY(entry) != str && memNE(HeKEY(entry),str,len))        /* is this it? */
                 continue;
             break;
         }
@@ -2877,10 +2891,14 @@ S_share_hek_flags(pTHX_ const char *str, I32 len, U32 hash, int flags)
 	    continue;
 	if (HeKLEN(entry) != len)
 	    continue;
-	if (HeKEY(entry) != str && memNE(HeKEY(entry),str,len))	/* is this it? */
-	    continue;
+        /* in PL_strtab the chance that two string collide, have the same length,
+         * and different flags is pretty good, as it holds all the keys in memory,
+         * and holds one entry per encoding (!), so we check the flag first.
+         * This is the opposite of hv_common/hv_delete. */
 	if (HeKFLAGS(entry) != flags_masked)
 	    continue;
+        if (HeKEY(entry) != str && memNE(HeKEY(entry),str,len))        /* is this it? */
+            continue;
 	break;
     }
 
