@@ -61,6 +61,11 @@ PerlIOWin32_pushed(pTHX_ PerlIO *f, const char *mode, SV *arg, PerlIO_funcs *tab
    s->fd     = PerlIO_fileno(PerlIONext(f));
   }
  PerlIOBase(f)->flags |= PERLIO_F_OPEN;
+
+ Perl_ck_warner_d(aTHX_
+		  packWARN(WARN_EXPERIMENTAL__WIN32_PERLIO),
+		  "PerlIO layer ':win32' is experimental");
+
  return code;
 }
 
@@ -69,6 +74,7 @@ PerlIOWin32_open(pTHX_ PerlIO_funcs *self, PerlIO_list_t *layers, IV n, const ch
 {
  const char *tmode = mode;
  HANDLE h = INVALID_HANDLE_VALUE;
+
  if (f)
   {
    /* Close if already open */
