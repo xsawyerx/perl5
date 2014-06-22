@@ -109,6 +109,11 @@ my $tree = {
 
        	 #'default'	=> [ 5.008, DEFAULT_ON ],
   	}],
+
+'pedantic' => [ 5.021, {
+    'void_unusual'	=> [ 5.021, DEFAULT_OFF],
+}],
+
 } ;
 
 my @def ;
@@ -475,7 +480,7 @@ read_only_bottom_close_and_rename($pm);
 __END__
 package warnings;
 
-our $VERSION = '1.26';
+our $VERSION = '1.27';
 
 # Verify that we're called correctly so that warnings will work.
 # see also strict.pm.

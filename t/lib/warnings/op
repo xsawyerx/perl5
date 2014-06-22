@@ -464,6 +464,12 @@ Useless use of a constant ("igatrewq") in void context at - line 59.
 Useless use of __SUB__ in void context at - line 61.
 ########
 # op.c
+use warnings 'void_unusual' ; close STDIN ;
+grep /42/, (1,2);	# OP_GREP
+EXPECT
+Unusual use of grep in void context at - line 3.
+########
+# op.c
 use warnings 'void' ; close STDIN ;
 my $x = sort (2,1,3);
 no warnings 'void' ;
@@ -524,6 +530,7 @@ eval { getgrnam 1 };	# OP_GGRNAM
 eval { getgrgid 1 };	# OP_GGRGID
 eval { getpwnam 1 };	# OP_GPWNAM
 eval { getpwuid 1 };	# OP_GPWUID
+grep /42/, (1,2);	# OP_GREP, not warned about, see void_unusual below
 prototype "foo";	# OP_PROTOTYPE
 EXPECT
 ########
