@@ -2213,13 +2213,37 @@ cpan/Test-Harness/t/yamlish-output.t			Test::Harness test
 cpan/Test-Harness/t/yamlish.t				Test::Harness test
 cpan/Test-Harness/t/yamlish-writer.t			Test::Harness test
 cpan/Test/lib/Test.pm		A simple framework for writing test scripts
+cpan/Test-Simple/lib/Test/Builder/ExitMagic.pm
+cpan/Test-Simple/lib/Test/Builder/Fork.pm
+cpan/Test-Simple/lib/Test/Builder/Formatter/LegacyResults.pm
+cpan/Test-Simple/lib/Test/Builder/Formatter.pm
+cpan/Test-Simple/lib/Test/Builder/Formatter/TAP.pm
 cpan/Test-Simple/lib/Test/Builder/Module.pm		Base class for test modules
 cpan/Test-Simple/lib/Test/Builder.pm			For writing new test libraries
+cpan/Test-Simple/lib/Test/Builder/Provider.pm
+cpan/Test-Simple/lib/Test/Builder/Result/Bail.pm
+cpan/Test-Simple/lib/Test/Builder/Result/Child.pm
+cpan/Test-Simple/lib/Test/Builder/Result/Diag.pm
+cpan/Test-Simple/lib/Test/Builder/Result/Finish.pm
+cpan/Test-Simple/lib/Test/Builder/Result/Note.pm
+cpan/Test-Simple/lib/Test/Builder/Result/Ok.pm
+cpan/Test-Simple/lib/Test/Builder/Result/Plan.pm
+cpan/Test-Simple/lib/Test/Builder/Result.pm
+cpan/Test-Simple/lib/Test/Builder/Stream.pm
 cpan/Test-Simple/lib/Test/Builder/Tester/Color.pm	Turn on color in Test::Builder::Tester
 cpan/Test-Simple/lib/Test/Builder/Tester.pm		For testing Test::Builder based classes
+cpan/Test-Simple/lib/Test/Builder/Threads.pm
+cpan/Test-Simple/lib/Test/Builder/Util.pm
 cpan/Test-Simple/lib/Test/More.pm			More utilities for writing tests
 cpan/Test-Simple/lib/Test/Simple.pm			Basic utility for writing tests
+cpan/Test-Simple/lib/Test/Tester2.pm
+cpan/Test-Simple/lib/Test/Tester/Capture.pm
+cpan/Test-Simple/lib/Test/Tester/CaptureRunner.pm
+cpan/Test-Simple/lib/Test/Tester/Delegate.pm
+cpan/Test-Simple/lib/Test/Tester.pm
 cpan/Test-Simple/lib/Test/Tutorial.pod			A tutorial on writing tests
+cpan/Test-Simple/.perlcriticrc
+cpan/Test-Simple/.perltidyrc
 cpan/Test-Simple/t/00test_harness_check.t		Test::Simple test
 cpan/Test-Simple/t/bad_plan.t				Test::Builder plan() test
 cpan/Test-Simple/t/bail_out.t				Test::Builder BAIL_OUT test
@@ -2278,8 +2302,10 @@ cpan/Test-Simple/t/is_deeply_with_threads.t		Test::More test
 cpan/Test-Simple/t/lib/Dev/Null.pm			Test::More test module
 cpan/Test-Simple/t/lib/Dummy.pm				Test::More test module
 cpan/Test-Simple/t/lib/MyOverload.pm			Test::More test module
+cpan/Test-Simple/t/lib/MyTest.pm
 cpan/Test-Simple/t/lib/NoExporter.pm			Test::Simple test module
 cpan/Test-Simple/t/lib/SigDie.pm			Test module for Test::More
+cpan/Test-Simple/t/lib/SmallTest.pm
 cpan/Test-Simple/t/lib/Test/Builder/NoOutput.pm		Utility module for testing Test::Builder
 cpan/Test-Simple/t/lib/Test/Simple/Catch.pm		Utility module for testing Test::Simple
 cpan/Test-Simple/t/lib/Test/Simple/sample_tests/death_in_eval.plx	for exit.t
@@ -2300,6 +2326,26 @@ cpan/Test-Simple/t/lib/Test/Simple/sample_tests/too_few.plx		for exit.t
 cpan/Test-Simple/t/lib/Test/Simple/sample_tests/two_fail.plx		for exit.t
 cpan/Test-Simple/t/lib/TieOut.pm			Testing library to capture prints
 cpan/Test-Simple/t/missing.t				Test::Simple test, missing tests
+cpan/Test-Simple/t/Modern/Builder_Fork.t
+cpan/Test-Simple/t/Modern/Builder_Formatter.t
+cpan/Test-Simple/t/Modern/Builder_Formatter_TAP.t
+cpan/Test-Simple/t/Modern/Builder_Module.t
+cpan/Test-Simple/t/Modern/Builder_Provider.t
+cpan/Test-Simple/t/Modern/Builder_Result_Child.t
+cpan/Test-Simple/t/Modern/Builder_Result_Diag.t
+cpan/Test-Simple/t/Modern/Builder_Result_Finish.t
+cpan/Test-Simple/t/Modern/Builder_Result_Note.t
+cpan/Test-Simple/t/Modern/Builder_Result_Ok.t
+cpan/Test-Simple/t/Modern/Builder_Result_Plan.t
+cpan/Test-Simple/t/Modern/Builder_Result.t
+cpan/Test-Simple/t/Modern/Builder_Stream.t
+cpan/Test-Simple/t/Modern/Builder.t
+cpan/Test-Simple/t/Modern/Builder_Tester.t
+cpan/Test-Simple/t/Modern/Builder_Util.t
+cpan/Test-Simple/t/Modern/More.t
+cpan/Test-Simple/t/Modern/Simple.t
+cpan/Test-Simple/t/Modern/Tester2.t
+cpan/Test-Simple/t/Modern/tracing.t
 cpan/Test-Simple/t/More.t				Test::More test, basic stuff
 cpan/Test-Simple/t/new_ok.t				Test::More test
 cpan/Test-Simple/t/no_plan.t				Test::Simple test, forgot the plan
@@ -2314,6 +2360,7 @@ cpan/Test-Simple/t/plan_shouldnt_import.t		Test::Simple test
 cpan/Test-Simple/t/plan_skip_all.t			Test::More test, plan() w/skip_all
 cpan/Test-Simple/t/plan.t				Test::More test, plan()
 cpan/Test-Simple/t/require_ok.t				Test::Simple test
+cpan/Test-Simple/t/ribasushi_threads.t
 cpan/Test-Simple/t/Simple/load.t			Test::Builder tests
 cpan/Test-Simple/t/simple.t				Test::Simple test, basic stuff
 cpan/Test-Simple/t/skipall.t				Test::More test, skip all tests
@@ -2348,6 +2395,11 @@ cpan/Test-Simple/t/Tester/tbt_09do.t			Test::Builder::Tester test
 cpan/Test-Simple/t/threads.t				Test::Builder thread-safe checks
 cpan/Test-Simple/t/thread_taint.t			Test::Simple test
 cpan/Test-Simple/t/todo.t				Test::More test, TODO tests
+cpan/Test-Simple/t/TTLegacy/auto.t
+cpan/Test-Simple/t/TTLegacy/capture.t
+cpan/Test-Simple/t/TTLegacy/check_tests.t
+cpan/Test-Simple/t/TTLegacy/depth.t
+cpan/Test-Simple/t/TTLegacy/run_test.t
 cpan/Test-Simple/t/undef.t				Test::More test, undefs don't cause warnings
 cpan/Test-Simple/t/useing.t				Test::More test, compile test
 cpan/Test-Simple/t/use_ok.t				Test::More test, use_ok()

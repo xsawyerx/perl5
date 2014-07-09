@@ -52,7 +52,7 @@ sub test_subtest_in_todo {
         my ($set_via, $todo_reason, $level) = @$combo;
 
         test_out(
-            "    # Subtest: xxx",
+            "# Subtest: xxx",
             @outlines,
             "not ok 1 - $xxx # TODO $todo_reason",
             "#   Failed (TODO) test '$xxx'",
@@ -89,7 +89,6 @@ sub main::subtest_at_level {
     my ($name, $code, $level) = @_;
 
     if ($level > 1) {
-        local $Test::Builder::Level = $Test::Builder::Level + 1;
         main::subtest_at_level($name, $code, $level-1);
     }
     else {
