@@ -7,6 +7,29 @@
 # -DPERL_GLOBAL_STRUCT_PRIVATE are used, verify that they did what
 # they were meant to do, hide the global variables (see perlguts for
 # the details).
+#
+# Debugging tip: nm output (this script's input) can be faked by
+# giving one command line argument for this script: it should be
+# either the filename to read, or "-" for STDIN.  You can also append
+# "@style" (where style is a supported nm style, like "gnu" or "darwin")
+# to this filename for "cross-parsing".
+#
+# Some terminology:
+# - "text" symbols are code
+# - "data" symbols are data (duh), with subdivisions:
+#   - "bss": (Block-Started-by-Symbol: originally from IBM assembler...),
+#     uninitialized data, which often even doesn't exist in the object
+#     file as such, only its size does, which is then created on demand
+#     by the loader
+#  - "const": initialized read-only data, like string literals
+#  - "common": uninitialized data unless initialized...
+#    (the full story is too long for here, see "man nm")
+#  - "data": initialized read-write data
+#    (somewhat confusingly below: "data data", but it makes code simpler)
+#  - "undefined": external symbol referred to by an object,
+#    most likely a text symbol.  Can be either a symbol defined by
+#    a Perl object file but referred to by other Perl object files,
+#    or a completely external symbol from libc, or other system libraries.
 
 BEGIN {
     chdir 't' if -d 't';
@@ -36,23 +59,59 @@ unless (defined $libperl_a) {
   skip_all "no libperl.a";
 }
 
+print "# \$^O = $^O\n";
+print "# \$Config{cc} = $Config{cc}\n";
 print "# libperl = $libperl_a\n";
 
 my $nm;
 my $nm_opt = '';
 my $nm_style;
+my $nm_fh;
+my $nm_err_tmp = "libperl$$";
 
-if ($^O eq 'linux') {
+END {
+    # this is still executed when we skip_all above, avoid a warning
+    unlink $nm_err_tmp if $nm_err_tmp;
+}
+
+my $fake_input;
+my $fake_style;
+
+if (@ARGV == 1) {
+    $fake_input = shift @ARGV;
+    print "# Faking nm output from $fake_input\n";
+    if ($fake_input =~ s/\@(.+)$//) {
+        $fake_style = $1;
+        print "# Faking nm style from $fake_style\n";
+        if ($fake_style eq 'gnu' || $fake_style eq 'linux') {
+            $nm_style = 'gnu'
+        } elsif ($fake_style eq 'darwin' || $fake_style eq 'osx') {
+            $nm_style = 'darwin'
+        } else {
+            die "$0: Unknown explicit nm style '$fake_style'\n";
+        }
+    }
+}
+
+unless (defined $nm_style) {
+    if ($^O eq 'linux') {
+        $nm_style = 'gnu';
+    } elsif ($^O eq 'darwin') {
+        $nm_style = 'darwin';
+    }
+}
+
+if ($nm_style eq 'gnu') {
     $nm = '/usr/bin/nm';
-    $nm_style = 'gnu';
-} elsif ($^O eq 'darwin') {
+} elsif ($nm_style eq 'darwin') {
     $nm = '/usr/bin/nm';
-    $nm_style = 'darwin';
     # With the -m option we get better information than the BSD-like
     # default: with the default, a lot of symbols get dumped into 'S'
     # or 's', for example one cannot tell the difference between const
-    # and non-const symbols.
+    # and non-const data symbols.
     $nm_opt = '-m';
+} else {
+    die "$0: Unexpected nm style '$nm_style'\n";
 }
 
 unless (defined $nm) {
@@ -71,11 +130,11 @@ unless (-x $nm) {
     skip_all "no executable nm $nm";
 }
 
-if ($nm_style eq 'gnu') {
-    open(my $nm_fh, "$nm --version|") or
+if ($nm_style eq 'gnu' && !defined $fake_style) {
+    open(my $gnu_verify, "$nm --version|") or
         skip_all "nm failed: $!";
     my $gnu_verified;
-    while (<$nm_fh>) {
+    while (<$gnu_verify>) {
         if (/^GNU nm/) {
             $gnu_verified = 1;
             last;
@@ -86,86 +145,126 @@ if ($nm_style eq 'gnu') {
     }
 }
 
-if ($^O eq 'darwin') {
-    skip_all 'nm peculiarities on darwin need study: RT #122267'
+if (defined $fake_input) {
+    if ($fake_input eq '-') {
+        open($nm_fh, "<&STDIN") or
+            skip_all "Duping STDIN failed: $!";
+    } else {
+        open($nm_fh, "<", $fake_input) or
+            skip_all "Opening '$fake_input' failed: $!";
+    }
+    undef $nm_err_tmp; # In this case there will be no nm errors.
+} else {
+    open($nm_fh, "$nm $nm_opt $libperl_a 2>$nm_err_tmp |") or
+        skip_all "$nm $nm_opt $libperl_a failed: $!";
 }
 
-my $nm_err_tmp = "libperl$$";
-
-END {
-    # this is still executed when we skip_all above, avoid a warning
-    unlink $nm_err_tmp if $nm_err_tmp;
+sub is_perlish_symbol {
+    $_[0] =~ /^(?:PL_|Perl|PerlIO)/;
 }
 
-open(my $nm_fh, "$nm $nm_opt $libperl_a 2>$nm_err_tmp |") or
-    skip_all "$nm $nm_opt $libperl_a failed: $!";
+# XXX Implement "internal test" for this script (option -t?)
+# to verify that the parsing does what it's intended to.
 
 sub nm_parse_gnu {
     my $symbols = shift;
+    my $line = $_;
     if (m{^(\w+\.o):$}) {
+        # object file name
         $symbols->{obj}{$1}++;
         $symbols->{o} = $1;
+        return;
     } else {
-        die "$0: undefined current object: $_" unless defined $symbols->{o};
-	if (/^[0-9a-f]{16} [Rr] (\w+)$/) {
-	    $symbols->{data}{const}{$1}{$symbols->{o}}++;
-	} elsif (/^[0-9a-f]{16} r .+$/) {
-	    # Skip local const.
-	} elsif (/^[0-9a-f]{16} [Tti] (\w+)(\..+)?$/) {
-	    $symbols->{text}{$1}{$symbols->{o}}++;
-	} elsif (/^[0-9a-f]{16} C (\w+)$/) {
-	    $symbols->{data}{common}{$1}{$symbols->{o}}++;
-	} elsif (/^[0-9a-f]{16} [BbSs] (\w+)(\.\d+)?$/) {
-	    $symbols->{data}{bss}{$1}{$symbols->{o}}++;
-	} elsif (/^0{16} D _LIB_VERSION$/) {
-	    # Skip the _LIB_VERSION (not ours).
-	} elsif (/^[0-9a-f]{16} [DdGg] (\w+)$/) {
-	    $symbols->{data}{data}{$1}{$symbols->{o}}++;
-	} elsif (/^ {16} U (\w+)$/) {
-	    # Skip the undefined.
-	} elsif (/^[0-9a-f]{16} . \.?(\w+)$/) {
-	    # Skip the unknown types.
-            print "# Unknown type: $_ ($symbols->{o})\n";
-	} else {
-            print "# Unexpected nm output '$_' ($symbols->{o})\n";
+        die "$0: undefined current object: $line"
+            unless defined $symbols->{o};
+        # 64-bit systems have 16 hexdigits, 32-bit systems have 8.
+        if (s/^[0-9a-f]{8}(?:[0-9a-f]{8})? //) {
+            if (/^[Rr] (\w+)$/) {
+                # R: read only (const)
+                $symbols->{data}{const}{$1}{$symbols->{o}}++;
+            } elsif (/^r .+$/) {
+                # Skip local const (read only).
+            } elsif (/^[Tti] (\w+)(\..+)?$/) {
+                $symbols->{text}{$1}{$symbols->{o}}++;
+            } elsif (/^C (\w+)$/) {
+                $symbols->{data}{common}{$1}{$symbols->{o}}++;
+            } elsif (/^[BbSs] (\w+)(\.\d+)?$/) {
+                # Bb: uninitialized data (bss)
+                # Ss: uninitialized data "for small objects"
+                $symbols->{data}{bss}{$1}{$symbols->{o}}++;
+            } elsif (/^0{16} D _LIB_VERSION$/) {
+                # Skip the _LIB_VERSION (not ours, probably libm)
+            } elsif (/^[DdGg] (\w+)$/) {
+                # Dd: initialized data
+                # Gg: initialized "for small objects"
+                $symbols->{data}{data}{$1}{$symbols->{o}}++;
+            } elsif (/^. \.?(\w+)$/) {
+                # Skip the unknown types.
+                print "# Unknown type: $line ($symbols->{o})\n";
+            }
+            return;
+        } elsif (/^ {8}(?: {8})? U _?(\w+)$/) {
+            my ($symbol) = $1;
+            return if is_perlish_symbol($symbol);
+            $symbols->{undef}{$symbol}{$symbols->{o}}++;
+            return;
 	}
     }
+    print "# Unexpected nm output '$line' ($symbols->{o})\n";
 }
 
 sub nm_parse_darwin {
     my $symbols = shift;
-    if (m{^(?:\.\./)?libperl\.a\((\w+\.o)\):$}) {
+    my $line = $_;
+    if (m{^(?:.+)?libperl\.a\((\w+\.o)\):$}) {
+        # object file name
         $symbols->{obj}{$1}++;
         $symbols->{o} = $1;
+        return;
     } else {
-        die "$0: undefined current object: $_" unless defined $symbols->{o};
-        if (/^[0-9a-f]{16} \(__TEXT,__(?:eh_frame|cstring)\) /) {
-            # Skip the eh_frame and cstring.
-        } elsif (/^[0-9a-f]{16} \(__TEXT,__(?:const|literal\d+)\) (?:non-)?external _?(\w+)(\.\w+)?$/) {
-            my ($symbol, $suffix) = ($1, $2);
-            # Ignore function-local constants like
-            # _Perl_av_extend_guts.oom_array_extend
-            return if defined $suffix && /__TEXT,__const/;
-            $symbols->{data}{const}{$symbol}{$symbols->{o}}++;
-        } elsif (/^[0-9a-f]{16} \(__TEXT,__text\) (?:non-)?external _(\w+)$/) {
-            $symbols->{text}{$1}{$symbols->{o}}++;
-        } elsif (/^[0-9a-f]{16} \(__DATA,__(const|data|bss|common)\) (?:non-)?external _(\w+)(\.\w+)?$/) {
-            my ($dtype, $symbol, $suffix) = ($1, $2, $3);
-            # Ignore function-local constants like
-            # _Perl_pp_gmtime.dayname
-            return if defined $suffix;
-            $symbols->{data}{$dtype}{$symbol}{$symbols->{o}}++;
-        } elsif (/^[0-9a-f]{16} \(__DATA,__const\) non-external _\.memset_pattern\d*$/) {
-            # Skip this, whatever it is (some inlined leakage from darwin libc?)
-        } elsif (/^ {16} \(undefined\) /) {
-            # Skip the undefined.
-        } elsif (/^[0-9a-f]{16} \(__\w+,__\w+\) /) {
-            # Skip the unknown types.
-            print "# Unknown type: $_ ($symbols->{o})\n";
-        } else {
-            print "# Unexpected nm output '$_' ($symbols->{o})\n";
+        die "$0: undefined current object: $line" unless defined $symbols->{o};
+        # 64-bit systems have 16 hexdigits, 32-bit systems have 8.
+        if (s/^[0-9a-f]{8}(?:[0-9a-f]{8})? //) {
+            # String literals can live in different sections
+            # depending on the compiler and os release, assumedly
+            # also linker flags.
+            if (/^\(__TEXT,__(?:const|cstring|literal\d+)\) (?:non-)?external _?(\w+)(\.\w+)?$/) {
+                my ($symbol, $suffix) = ($1, $2);
+                # Ignore function-local constants like
+                # _Perl_av_extend_guts.oom_array_extend
+                return if defined $suffix && /__TEXT,__const/;
+                # Ignore the cstring unnamed strings.
+                return if $symbol =~ /^L\.str\d+$/;
+                $symbols->{data}{const}{$symbol}{$symbols->{o}}++;
+            } elsif (/^\(__TEXT,__text\) (?:non-)?external _(\w+)$/) {
+                $symbols->{text}{$1}{$symbols->{o}}++;
+            } elsif (/^\(__DATA,__(const|data|bss|common)\) (?:non-)?external _(\w+)(\.\w+)?$/) {
+                my ($dtype, $symbol, $suffix) = ($1, $2, $3);
+                # Ignore function-local constants like
+                # _Perl_pp_gmtime.dayname
+                return if defined $suffix;
+                $symbols->{data}{$dtype}{$symbol}{$symbols->{o}}++;
+            } elsif (/^\(__DATA,__const\) non-external _\.memset_pattern\d*$/) {
+                # Skip this, whatever it is (some inlined leakage from
+                # darwin libc?)
+            } elsif (/^\(__TEXT,__eh_frame/) {
+                # Skip the eh_frame (exception handling) symbols.
+                return;
+            } elsif (/^\(__\w+,__\w+\) /) {
+                # Skip the unknown types.
+                print "# Unknown type: $line ($symbols->{o})\n";
+            }
+            return;
+        } elsif (/^ {8}(?: {8})? \(undefined(?: \[lazy bound\])?\) external _?(.+)/) {
+            # darwin/ppc marks most undefined text symbols
+            # as "[lazy bound]".
+            my ($symbol) = $1;
+            return if is_perlish_symbol($symbol);
+            $symbols->{undef}{$symbol}{$symbols->{o}}++;
+            return;
         }
     }
+    print "# Unexpected nm output '$line' ($symbols->{o})\n";
 }
 
 my $nm_parse;
@@ -177,7 +276,7 @@ if ($nm_style eq 'gnu') {
 }
 
 unless (defined $nm_parse) {
-    skip_all "no nm parser";
+    skip_all "no nm parser ($nm_style $nm_style, \$^O $^O)";
 }
 
 my %symbols;
@@ -218,43 +317,7 @@ for my $dtype (sort keys %{$symbols{data}}) {
     }
 }
 
-# Since we are deprived of Test::More.
-sub is_deeply {
-    my ($a, $b) = @_;
-    if (ref $a eq 'ARRAY' && ref $b eq 'ARRAY') {
-	if (@$a == @$b) {
-	    for my $i (0..$#$a) {
-		unless ($a->[$i] eq $b->[$i]) {
-                    printf("# LHS elem #%d '%s' ne RHS elem #%d '%s'\n",
-                           $a->[$i], $b->[$i]);
-		    return 0;
-		}
-	    }
-	    return 1;
-	} else {
-            printf("# LHS length %d, RHS length %d\n",
-                   @$a, @$b);
-	    return 0;
-	}
-    } else {
-	die "$0: Unexpcted: is_deeply $a $b\n";
-    }
-}
-
 # The following tests differ between vanilla vs $GSP or $GS.
-#
-# Some terminology:
-# - "text" symbols are code
-# - "data" symbols are data (duh), with subdivisions:
-#   - "bss": (Block-Started-by-Symbol: originally from IBM assembler...),
-#     uninitialized data, which often even doesn't exist in the object
-#     file as such, only its size does, which is then created on demand
-#     by the loader
-#  - "const": initialized read-only data, like string literals
-#  - "common": uninitialized data unless initialized...
-#    (the full story is too long for here, see "man nm")
-#  - "data": initialized read-write data
-#    (somewhat confusingly below: "data data", but it makes code simpler)
 
 if ($GSP) {
     print "# -DPERL_GLOBAL_STRUCT_PRIVATE\n";
@@ -300,17 +363,17 @@ if ($GSP) {
 
     # my_cxt_index is used with PERL_IMPLICIT_CONTEXT, which
     # -DPERL_GLOBAL_STRUCT has turned on.
-    is_deeply([sort keys %{$symbols{data}{data}}],
-              [sort('PL_VarsPtr',
-                    @PerlIO,
-                    'PL_magic_vtables',
-                    'my_cxt_index')],
-              "data data symbols");
+    eq_array([sort keys %{$symbols{data}{data}}],
+             [sort('PL_VarsPtr',
+                   @PerlIO,
+                   'PL_magic_vtables',
+                   'my_cxt_index')],
+             "data data symbols");
 
     # Only one data common symbol, our "supervariable".
-    is_deeply([sort keys %{$symbols{data}{common}}],
-              ['PL_Vars'],
-              "data common symbols");
+    eq_array([sort keys %{$symbols{data}{common}}],
+             ['PL_Vars'],
+             "data common symbols");
 
     ok($symbols{data}{data}{PL_VarsPtr}{'globals.o'}, "has PL_VarsPtr");
     ok($symbols{data}{common}{PL_Vars}{'globals.o'}, "has PL_Vars");
@@ -321,11 +384,11 @@ if ($GSP) {
     print "# neither -DPERL_GLOBAL_STRUCT nor -DPERL_GLOBAL_STRUCT_PRIVATE\n";
 
     if ( !$symbols{data}{common} ) {
-        # This is likely because Perl was compiled with 
+        # This is likely because Perl was compiled with
         # -Accflags="-fno-common"
         $symbols{data}{common} = $symbols{data}{bss};
     }
-    
+
     ok($symbols{data}{common}{PL_hash_seed}{'globals.o'}, "has PL_hash_seed");
     ok($symbols{data}{data}{PL_ppaddr}{'globals.o'}, "has PL_ppaddr");
 
@@ -335,21 +398,43 @@ if ($GSP) {
     ok(! exists $symbols{text}{Perl_GetVars}, "has no Perl_GetVars");
 }
 
-if (open(my $nm_err_fh, $nm_err_tmp)) {
-    my $error;
-    while (<$nm_err_fh>) {
-        # OS X has weird error where nm warns about
-        # "no name list" but then outputs fine.
-        if (/nm: no name list/ && $^O eq 'darwin') {
-            print "# $^O ignoring $nm output: $_";
-            next;
+ok(keys %{$symbols{undef}}, "has undefined symbols");
+
+my @good = qw(memchr memcmp memcpy chmod socket getenv sigaction sqrt time);
+if ($Config{usedl}) {
+    push @good, 'dlopen';
+}
+for my $good (@good) {
+    my @o = exists $symbols{undef}{$good} ?
+        sort keys %{ $symbols{undef}{$good} } : ();
+    ok(@o, "uses $good (@o)");
+}
+
+my @bad = qw(gets strcpy strcat strncpy strncat sprintf vsprintf);
+# XXX: add atoi() to @bad
+for my $bad (@bad) {
+    my @o = exists $symbols{undef}{$bad} ?
+        sort keys %{ $symbols{undef}{$bad} } : ();
+    is(@o, 0, "uses no $bad (@o)");
+}
+
+if (defined $nm_err_tmp) {
+    if (open(my $nm_err_fh, $nm_err_tmp)) {
+        my $error;
+        while (<$nm_err_fh>) {
+            # OS X has weird error where nm warns about
+            # "no name list" but then outputs fine.
+            if (/nm: no name list/ && $^O eq 'darwin') {
+                print "# $^O ignoring $nm output: $_";
+                next;
+            }
+            warn "$0: Unexpected $nm error: $_";
+            $error++;
         }
-        warn "$0: Unexpected $nm error: $_";
-        $error++;
+        die "$0: Unexpected $nm errors\n" if $error;
+    } else {
+        warn "Failed to open '$nm_err_tmp': $!\n";
     }
-    die "$0: Unexpected $nm errors\n" if $error;
-} else {
-    warn "Failed to open '$nm_err_tmp': $!\n";
 }
 
 done_testing();
