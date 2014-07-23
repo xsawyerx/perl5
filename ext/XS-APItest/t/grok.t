@@ -109,7 +109,7 @@ for my $grok (@groks) {
   is($out_flags, $grok->[3], "'$grok->[0]' flags $grok->[1] - check flags");
 }
 
-my $ATOU_MAX = ~0;
+my $ATOU_MAX = ~0 >> ($Config{uvsize} - $Config{sizesize});
 
 # atou tests
 my @atous =
@@ -159,15 +159,19 @@ my @atous =
    [ "012",  "012", $ATOU_MAX,  0 ],
   );
 
+# Values near overflow point.
 if ($Config{sizesize} == 8) {
     push @atous,
       (
+       # 32-bit values no problem for 64-bit.
        [ "4294967294", "", 4294967294, 10, ],
        [ "4294967295", "", 4294967295, 10, ],
        [ "4294967296", "", 4294967296, 10, ],
 
+       # This is well within 64-bit.
        [ "9999999999", "", 9999999999, 10, ],
 
+       # Values valid up to 64-bit and beyond.
        [ "18446744073709551614", "", 18446744073709551614, 20, ],
        [ "18446744073709551615", "", $ATOU_MAX, 20, ],
        [ "18446744073709551616", "18446744073709551616", $ATOU_MAX, 0, ],
@@ -175,12 +179,15 @@ if ($Config{sizesize} == 8) {
 } elsif ($Config{sizesize} == 4) {
     push @atous,
       (
+       # Values valid up to 32-bit and beyond.
        [ "4294967294", "", 4294967294, 10, ],
        [ "4294967295", "", $ATOU_MAX, 10, ],
        [ "4294967296", "", $ATOU_MAX, 0, ],
 
+       # Still beyond 32-bit.
        [ "9999999999", "", $ATOU_MAX, 0, ],
 
+       # 64-bit values are way beyond.
        [ "18446744073709551614", "", $ATOU_MAX, 0, ],
        [ "18446744073709551615", "", $ATOU_MAX, 0, ],
        [ "18446744073709551616", "18446744073709551616", $ATOU_MAX, 0, ],
@@ -207,7 +214,7 @@ for my $grok (@atous) {
     unless (length $grok->[1]) {
         is($out_len, $grok->[3], "'$input' $endsv - length sanity 2");
     } # else { ... } ?
-    is($endsv, substr($input, $out_len), "'$input' $endsv - length success");
+    is($endsv, substr($input, $out_len), "'$input' $endsv - length sanity 3");
 
     # Then without endsv (undef == NULL).
     ($out_uv, $out_len) = grok_atou($input, undef);
