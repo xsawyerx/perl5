@@ -109,7 +109,7 @@ for my $grok (@groks) {
   is($out_flags, $grok->[3], "'$grok->[0]' flags $grok->[1] - check flags");
 }
 
-my $ATOU_MAX = ~0 >> ($Config{uvsize} - $Config{sizesize});
+my $ATOU_MAX = ~0;
 
 # atou tests
 my @atous =
@@ -160,7 +160,7 @@ my @atous =
   );
 
 # Values near overflow point.
-if ($Config{sizesize} == 8) {
+if ($Config{uvsize} == 8) {
     push @atous,
       (
        # 32-bit values no problem for 64-bit.
@@ -176,7 +176,7 @@ if ($Config{sizesize} == 8) {
        [ "18446744073709551615", "", $ATOU_MAX, 20, ],
        [ "18446744073709551616", "18446744073709551616", $ATOU_MAX, 0, ],
       );
-} elsif ($Config{sizesize} == 4) {
+} elsif ($Config{uvsize} == 4) {
     push @atous,
       (
        # Values valid up to 32-bit and beyond.

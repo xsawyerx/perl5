@@ -804,7 +804,7 @@ leading whitespace, or negative inputs.  If such features are
 required, the calling code needs to explicitly implement those.
 
 If a valid value cannot be parsed, returns either zero (if non-digits
-are met before any digits) or Size_t_MAX (if the value overflows).
+are met before any digits) or UV_MAX (if the value overflows).
 
 Note that extraneous leading zeros also count as an overflow
 (meaning that only "0" is the zero).
@@ -825,17 +825,17 @@ seen as a bug (global state controlled by user environment).
 =cut
 */
 
-Size_t
+UV
 Perl_grok_atou(const char *pv, const char** endptr)
 {
     const char* s = pv;
     const char** eptr;
     const char* end2; /* Used in case endptr is NULL. */
-    /* With Size_t_size of 8 or 4 this works out to be the start plus
+    /* With UVSIZE of 8 or 4 this works out to be the start plus
      * either 20 or 10.  When 128 or 256-bit systems became reality,
      * this overshoots (should get 39, 78, but gets 40, 80). */
-    const char* maxend = s + 10 * (Size_t_size / 4);
-    Size_t val = 0; /* The return value. */
+    const char* maxend = s + 10 * (UVSIZE / 4);
+    UV val = 0; /* The return value. */
 
     PERL_ARGS_ASSERT_GROK_ATOU;
 
@@ -847,7 +847,7 @@ Perl_grok_atou(const char *pv, const char** endptr)
          * (now they are invalid). */
         val = *s++ - '0';
     } else {
-        Size_t tmp = 0; /* Temporary accumulator. */
+        UV tmp = 0; /* Temporary accumulator. */
 
         while (s < maxend && *s) {
             /* This could be unrolled like in grok_number(), but
@@ -860,7 +860,7 @@ Perl_grok_atou(const char *pv, const char** endptr)
                     val = tmp;
                 } else { /* Overflow. */
                     *eptr = NULL;
-                    return Size_t_MAX;
+                    return UV_MAX;
                 }
             } else {
                 break;
